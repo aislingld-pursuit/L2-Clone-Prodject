@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.bak
+.DS_Store
+Thumbs.db
+
+# Local working copies (regenerated from template via analyze_and_fill_prd.py)
+_prd_working_copy.docx
