@@ -30,4 +30,27 @@ Requires `Aisling Copy of 20260515 PRD Template.docx` in this folder (close in W
 
 ## Status
 
-Planning and documentation — implementation starts with Phase 0 (Tauri + whisper.cpp spike). See [ROADMAP.md](./ROADMAP.md).
+**Phase 0 in progress** — Tauri 2 desktop app with `wisper-core` (whisper.cpp via whisper-rs). See [ROADMAP.md](./ROADMAP.md).
+
+## Development (Phase 0)
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) (1.70+)
+- [Node.js](https://nodejs.org/) 20+
+- **CMake** (required to build whisper.cpp on Windows)
+- Visual Studio Build Tools (MSVC) on Windows
+
+### Run the app
+
+```powershell
+cd wisper
+npm install
+npm run tauri dev
+```
+
+### Whisper model (one-time)
+
+Download a GGML model (e.g. `ggml-large-v3-turbo.bin` or `ggml-base.en.bin` for faster testing) from [Hugging Face — whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp) and place it at the path shown in the app under **Whisper model** (typically `%APPDATA%\com.aislingldpursuit.wisper\models\` on Windows).
+
+Transcription is fully offline once the model is installed.

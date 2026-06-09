@@ -1,0 +1,12 @@
+[package]
+name = "wisper-core"
+version = "0.1.0"
+edition = "2021"
+description = "Local-first audio pipeline and whisper.cpp transcription for Wisper"
+
+[dependencies]
+hound = "3.5"
+serde = { version = "1", features = ["derive"] }
+symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "wav", "isomp4"] }
+thiserror = "2"
+whisper-rs = "0.13"
