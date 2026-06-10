@@ -103,6 +103,41 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.panel-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.compute-toggle {
+  display: inline-flex;
+  border: 1px solid #3c4454;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.compute-toggle button {
+  border: none;
+  border-radius: 0;
+  background: #222733;
+  min-width: 5.5rem;
+}
+
+.compute-toggle button + button {
+  border-left: 1px solid #3c4454;
+}
+
+.compute-toggle button.active {
+  background: #2d6a4f;
+}
+
+.compute-toggle button:disabled {
+  opacity: 0.45;
+}
+
+.compute-hint {
+  margin-top: 0.75rem;
+}
+
 .model-panel h2,
 .transcript h2 {
   margin: 0 0 0.75rem;

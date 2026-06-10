@@ -30,14 +30,7 @@ fn load_wav(path: &Path) -> Result<Vec<f32>, WisperError> {
             .into_samples::<f32>()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| WisperError::AudioDecode(e.to_string()))?,
-        hound::SampleFormat::Int => reader
-            .into_samples::<i32>()
-            .map_err(|e| WisperError::AudioDecode(e.to_string()))?
-            .map(|s| s.map_err(|e| WisperError::AudioDecode(e.to_string())))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .map(|s| s as f32 / i32::MAX as f32)
-            .collect(),
+        hound::SampleFormat::Int => int_samples_to_f32(reader, spec.bits_per_sample)?,
     };
 
     let mono = downmix_to_mono(&samples, spec.channels as usize);
@@ -67,15 +60,17 @@ fn decode_with_symphonia(path: &Path) -> Result<Vec<f32>, WisperError> {
         .default_track()
         .ok_or_else(|| WisperError::AudioDecode("no default audio track".into()))?;
 
-    let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default())
-        .map_err(|e| WisperError::AudioDecode(e.to_string()))?;
-
+    let track_id = track.id;
+    let codec = track.codec_params.codec;
     let sample_rate = track
         .codec_params
         .sample_rate
         .unwrap_or(TARGET_SAMPLE_RATE);
     let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
+
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &DecoderOptions::default())
+        .map_err(|e| WisperError::AudioDecode(e.to_string()))?;
 
     let mut pcm = Vec::new();
 
@@ -90,11 +85,11 @@ fn decode_with_symphonia(path: &Path) -> Result<Vec<f32>, WisperError> {
             Err(e) => return Err(WisperError::AudioDecode(e.to_string())),
         };
 
-        if packet.track_id() != track.id {
+        if packet.track_id() != track_id {
             continue;
         }
 
-        if track.codec_params.codec != CODEC_TYPE_NULL {
+        if codec != CODEC_TYPE_NULL {
             match decoder.decode(&packet) {
                 Ok(decoded) => append_decoded(&mut pcm, decoded),
                 Err(SymphoniaError::IoError(_)) => break,
@@ -148,6 +143,31 @@ fn append_decoded(pcm: &mut Vec<f32>, decoded: AudioBufferRef<'_>) {
     }
 }
 
+fn int_samples_to_f32(
+    reader: hound::WavReader<std::io::BufReader<std::fs::File>>,
+    bits_per_sample: u16,
+) -> Result<Vec<f32>, WisperError> {
+    let decode_err = |e: hound::Error| WisperError::AudioDecode(e.to_string());
+
+    match bits_per_sample {
+        8 => reader
+            .into_samples::<i8>()
+            .map(|s| s.map_err(decode_err).map(|s| (s as f32 - 128.0) / 128.0))
+            .collect(),
+        16 => reader
+            .into_samples::<i16>()
+            .map(|s| s.map_err(decode_err).map(|s| s as f32 / i16::MAX as f32))
+            .collect(),
+        24 | 32 => reader
+            .into_samples::<i32>()
+            .map(|s| s.map_err(decode_err).map(|s| s as f32 / i32::MAX as f32))
+            .collect(),
+        bits => Err(WisperError::AudioDecode(format!(
+            "unsupported WAV bit depth: {bits}"
+        ))),
+    }
+}
+
 fn downmix_to_mono(samples: &[f32], channels: usize) -> Vec<f32> {
     if channels <= 1 {
         return samples.to_vec();
@@ -178,4 +198,31 @@ fn resample_linear(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn sample_path(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("samples")
+            .join(name)
+    }
+
+    #[test]
+    fn load_16bit_wav_has_usable_amplitude() {
+        let path = sample_path("jfk-sample.wav");
+        if !path.exists() {
+            return;
+        }
+
+        let pcm = load_audio_pcm(&path).expect("jfk sample should decode");
+        let peak = pcm.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+
+        assert!(pcm.len() > 160_000, "expected ~11s at 16kHz, got {}", pcm.len());
+        assert!(peak > 0.05, "PCM peak too quiet ({peak}); check normalization");
+    }
 }
