@@ -105,7 +105,7 @@ jobs:
             libssl-dev \
             libvulkan-dev \
             vulkan-tools \
-            glslang-tools \
+            glslc \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
@@ -119,10 +119,13 @@ jobs:
       - name: Verify Vulkan shader tools
         run: |
           echo "VULKAN_SDK=${VULKAN_SDK:-unset}"
+          export PATH="${VULKAN_SDK}/bin:${PATH}"
           command -v glslc
           glslc --version
       - name: Check wisper-core (ARM64 gpu-vulkan)
-        run: cargo check -p wisper-core --features gpu-vulkan
+        run: |
+          export PATH="${VULKAN_SDK}/bin:${PATH}"
+          cargo check -p wisper-core --features gpu-vulkan
 
   build-macos-metal:
     name: macOS Metal (ARM64)
