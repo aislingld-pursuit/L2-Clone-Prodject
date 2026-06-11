@@ -105,6 +105,7 @@ jobs:
             libssl-dev \
             libvulkan-dev \
             vulkan-tools \
+            glslang-tools \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
@@ -113,7 +114,13 @@ jobs:
         uses: jakoch/install-vulkan-sdk-action@v1.4.0
         with:
           vulkan_version: 1.4.309.0
-          cache: true
+          # Avoid stale/incomplete cached SDK trees missing glslc on ARM runners.
+          cache: false
+      - name: Verify Vulkan shader tools
+        run: |
+          echo "VULKAN_SDK=${VULKAN_SDK:-unset}"
+          command -v glslc
+          glslc --version
       - name: Check wisper-core (ARM64 gpu-vulkan)
         run: cargo check -p wisper-core --features gpu-vulkan
 
@@ -146,11 +153,14 @@ jobs:
       - name: Patch ggml-vulkan CMake (Windows)
         shell: pwsh
         run: ./scripts/patch-vulkan-cmake.ps1
-      - name: Check wisper-core (gpu-vulkan)
-        run: cargo check -p wisper-core --features gpu-vulkan
-      # wisper-core and wisper can produce different whisper-rs-sys fingerprints; re-patch out dirs.
-      - name: Re-apply Vulkan CMake patch (post wisper-core)
+      - name: Prepare ExternalProject build root
         shell: pwsh
-        run: ./scripts/patch-vulkan-cmake.ps1
-      - name: Check wisper app (gpu-vulkan)
+        run: |
+          if (Test-Path $env:WISPER_EP_BUILD_ROOT) {
+            Remove-Item -Recurse -Force $env:WISPER_EP_BUILD_ROOT
+          }
+          New-Item -ItemType Directory -Force -Path $env:WISPER_EP_BUILD_ROOT | Out-Null
+      # Single check: wisper-core + wisper in one graph avoids two whisper-rs-sys fingerprints
+      # fighting over the same vulkan-shaders-gen ExternalProject prefix on Windows.
+      - name: Check wisper (gpu-vulkan)
         run: cargo check -p wisper --features gpu-vulkan

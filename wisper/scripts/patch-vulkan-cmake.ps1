@@ -2,7 +2,7 @@
 # 1. Inherit parent Visual Studio generator for nested vulkan-shaders-gen
 # 2. Build ExternalProject under a space-free path (MSBuild breaks on spaced OneDrive paths)
 
-$marker = "WIN32_NATIVE_MSVC_COMPILER_PATCH_V2"
+$marker = "WIN32_NATIVE_MSVC_COMPILER_PATCH_V3"
 
 $epSetupBlock = @"
 
@@ -26,7 +26,12 @@ $epSetupBlock = @"
         string(REPLACE "\\" "/" _GGML_VULKAN_EP_ROOT "`${_GGML_VULKAN_EP_ROOT}")
         file(MAKE_DIRECTORY "`${_GGML_VULKAN_EP_ROOT}")
         # Unique per whisper-rs-sys out dir — shared prefix breaks when cargo rebuilds with a new fingerprint (CI: wisper-core then wisper).
-        string(SHA256 "`${CMAKE_CURRENT_LIST_DIR}" _GGML_VULKAN_EP_ID)
+        string(REPLACE "\\" "/" _GGML_VULKAN_EP_SRC "`${CMAKE_CURRENT_LIST_DIR}")
+        if (_GGML_VULKAN_EP_SRC MATCHES "whisper-rs-sys-([a-f0-9]+)")
+            set(_GGML_VULKAN_EP_ID "`${CMAKE_MATCH_1}")
+        else()
+            string(MD5 "`${_GGML_VULKAN_EP_SRC}" _GGML_VULKAN_EP_ID)
+        endif()
         string(SUBSTRING "`${_GGML_VULKAN_EP_ID}" 0 16 _GGML_VULKAN_EP_ID)
         set(_GGML_VULKAN_EP_PREFIX "`${_GGML_VULKAN_EP_ROOT}/`${_GGML_VULKAN_EP_ID}/vulkan-shaders-gen-prefix")
     endif()
@@ -54,6 +59,7 @@ function Remove-ExistingPatchBlock {
     param([string]$Content)
 
     $patterns = @(
+        '(?s)\r?\n    # WIN32_NATIVE_MSVC_COMPILER_PATCH_V3[^\r\n]*\r?\n.*?(?=\r?\n    ExternalProject_Add\(\r?\n)',
         '(?s)\r?\n    # WIN32_NATIVE_MSVC_COMPILER_PATCH_V2[^\r\n]*\r?\n.*?(?=\r?\n    ExternalProject_Add\(\r?\n)',
         '(?s)\r?\n    # WIN32_NATIVE_MSVC_COMPILER_PATCH[^\r\n]*\r?\n.*?(?=\r?\n    ExternalProject_Add\(\r?\n)'
     )
@@ -81,7 +87,7 @@ function Test-AlreadyPatched {
 
     return (
         ($Content -match [regex]::Escape($marker)) -and
-        ($Content -match '_GGML_VULKAN_EP_ID') -and
+        ($Content -match 'CMAKE_MATCH_1') -and
         ($Content -match 'PREFIX "\$\{_GGML_VULKAN_EP_PREFIX\}"') -and
         ($Content -match 'CMAKE_GENERATOR "\$\{_GGML_VULKAN_EP_GENERATOR\}"')
     )
