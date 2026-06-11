@@ -86,6 +86,15 @@ button.primary:hover:not(:disabled) {
   background: #40916c;
 }
 
+button.cancel {
+  border-color: #8b3a3a;
+  background: #3d2222;
+}
+
+button.cancel:hover:not(:disabled) {
+  background: #5c2f2f;
+}
+
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -95,6 +104,30 @@ button:disabled {
   margin: 1rem 0 0;
   color: #9aa0a6;
   font-size: 0.9rem;
+}
+
+.progress-block {
+  margin-top: 1rem;
+}
+
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #2a2f3a;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2d6a4f, #52b788);
+  transition: width 0.25s ease;
+}
+
+.progress-meta {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+  font-family: ui-monospace, Consolas, monospace;
 }
 
 .error {
@@ -136,6 +169,38 @@ button:disabled {
 
 .compute-hint {
   margin-top: 0.75rem;
+}
+
+.compute-meta {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.fallback-notice {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #b08900;
+  background: #3d3200;
+  color: #fde68a;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.fallback-notice strong {
+  font-weight: 600;
+}
+
+.fallback-complete {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #40916c;
+  background: #1e3a2f;
+  color: #95d5b2;
+  font-size: 0.85rem;
 }
 
 .model-panel h2,

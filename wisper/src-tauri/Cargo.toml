@@ -23,3 +23,5 @@ wisper-core = { path = "../wisper-core" }
 [features]
 default = []
 gpu-vulkan = ["wisper-core/gpu-vulkan"]
+gpu-cuda = ["wisper-core/gpu-cuda"]
+gpu-sycl = ["wisper-core/gpu-sycl"]

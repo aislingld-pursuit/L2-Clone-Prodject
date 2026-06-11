@@ -1,8 +1,12 @@
 param(
-    [switch]$BuildOnly
+    [switch]$BuildOnly,
+    [ValidateSet("auto", "vulkan", "cuda", "sycl", "cpu")]
+    [string]$GpuBackend = "auto"
 )
 
-# Local dev launcher — ensures Cargo can find CMake for whisper.cpp.
+# Local dev launcher — CMake + MSVC + optional GPU backend (Vulkan / CUDA / Intel SYCL).
+# macOS: use dev-macos.sh (Metal is enabled automatically on Apple Silicon and Intel Macs).
+
 $cmakeExe = "C:\Program Files\CMake\bin\cmake.exe"
 if (-not (Test-Path $cmakeExe)) {
     Write-Error "CMake not found. Install with: winget install Kitware.CMake"
@@ -21,7 +25,6 @@ function Find-VsDevCmd {
         }
     }
 
-    # Prefer newer VS installs (18 before 2022) when vswhere is unavailable.
     $candidates = @(
         "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat",
         "${env:ProgramFiles(x86)}\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat",
@@ -91,8 +94,6 @@ function Find-ClCompilerPath {
 function Set-CMakeCompilerEnv {
     param([Parameter(Mandatory = $true)][string]$ClPath)
 
-    # Parent cmake gets -DCMAKE_C_COMPILER from whisper-rs-sys (reads these env vars).
-    # Nested vulkan-shaders-gen needs the patch script to forward them via CMAKE_ARGS.
     $env:CMAKE_C_COMPILER = $ClPath
     $env:CMAKE_CXX_COMPILER = $ClPath
 }
@@ -114,7 +115,7 @@ function Initialize-MsvcDevEnvironment {
 
     $vsDevCmd = Find-VsDevCmd
     if (-not $vsDevCmd) {
-        Write-Warning "Visual Studio Build Tools not found. GPU builds fail at vulkan-shaders-gen without cl.exe."
+        Write-Warning "Visual Studio Build Tools not found. GPU builds need cl.exe."
         return $false
     }
 
@@ -140,17 +141,6 @@ function Initialize-MsvcDevEnvironment {
     return $true
 }
 
-$script:VsDevCmdPath = $null
-$script:MsvcReady = Initialize-MsvcDevEnvironment
-
-$env:CMAKE = $cmakeExe
-$cmakeBin = "C:\Program Files\CMake\bin"
-if ($env:Path -notlike "*$cmakeBin*") {
-    $env:Path = "$env:Path;$cmakeBin"
-}
-
-& $cmakeExe --version
-
 function Resolve-VulkanSdk {
     if ($env:VULKAN_SDK -and (Test-Path $env:VULKAN_SDK)) {
         return $env:VULKAN_SDK
@@ -170,6 +160,113 @@ function Resolve-VulkanSdk {
     return $env:VULKAN_SDK
 }
 
+function Resolve-CudaToolkit {
+    foreach ($var in @("CUDA_PATH", "CUDA_HOME")) {
+        $value = (Get-Item -Path "env:$var" -ErrorAction SilentlyContinue).Value
+        if ($value -and (Test-Path $value)) {
+            if (-not $env:CUDA_PATH) {
+                $env:CUDA_PATH = $value
+            }
+            return $env:CUDA_PATH
+        }
+    }
+
+    $default = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
+    if (Test-Path $default) {
+        $env:CUDA_PATH = $default
+        return $default
+    }
+
+    $cudaRoot = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
+    if (Test-Path $cudaRoot) {
+        $latest = Get-ChildItem $cudaRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
+        if ($latest) {
+            $env:CUDA_PATH = $latest.FullName
+            return $latest.FullName
+        }
+    }
+
+    return $null
+}
+
+function Resolve-OneApiRoot {
+    if ($env:ONEAPI_ROOT -and (Test-Path $env:ONEAPI_ROOT)) {
+        return $env:ONEAPI_ROOT
+    }
+
+    $default = "C:\Program Files (x86)\Intel\oneAPI"
+    if (Test-Path $default) {
+        $env:ONEAPI_ROOT = $default
+        return $default
+    }
+
+    return $null
+}
+
+function Initialize-OneApiEnvironment {
+    $root = Resolve-OneApiRoot
+    if (-not $root) {
+        return $false
+    }
+
+    $setvars = Join-Path $root "setvars.bat"
+    if (-not (Test-Path $setvars)) {
+        Write-Warning "oneAPI found at $root but setvars.bat is missing."
+        return $false
+    }
+
+    cmd /c "`"$setvars`" intel64 >nul && set" | ForEach-Object {
+        if ($_ -match '^(?<key>[^=]+)=(?<val>.*)$') {
+            Set-Item -Path "env:$($matches.key)" -Value $matches.val
+        }
+    }
+
+    Write-Host "Intel oneAPI: $root"
+    return $true
+}
+
+function Test-NvidiaGpuPresent {
+    $nvidiaSmi = Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue
+    if (-not $nvidiaSmi) {
+        return $false
+    }
+    cmd /c "nvidia-smi.exe -L >nul 2>&1" | Out-Null
+    return $LASTEXITCODE -eq 0
+}
+
+function Resolve-GpuBackend {
+    param([string]$Requested)
+
+    if ($Requested -eq "cpu") {
+        return @{ Mode = "cpu"; Feature = $null; Label = "CPU-only" }
+    }
+
+    if ($Requested -eq "cuda") {
+        return @{ Mode = "cuda"; Feature = "gpu-cuda"; Label = "CUDA (NVIDIA)" }
+    }
+
+    if ($Requested -eq "vulkan") {
+        return @{ Mode = "vulkan"; Feature = "gpu-vulkan"; Label = "Vulkan (AMD / Intel / NVIDIA)" }
+    }
+
+    if ($Requested -eq "sycl") {
+        return @{ Mode = "sycl"; Feature = "gpu-sycl"; Label = "Intel SYCL (oneAPI)" }
+    }
+
+    # auto: CUDA only when an NVIDIA GPU is present, then Vulkan, then Intel SYCL
+    if ((Test-NvidiaGpuPresent) -and (Resolve-CudaToolkit)) {
+        return @{ Mode = "cuda"; Feature = "gpu-cuda"; Label = "CUDA (auto-detected NVIDIA GPU)" }
+    }
+    if (Resolve-VulkanSdk) {
+        return @{ Mode = "vulkan"; Feature = "gpu-vulkan"; Label = "Vulkan (auto-detected)" }
+    }
+    if (Resolve-OneApiRoot) {
+        return @{ Mode = "sycl"; Feature = "gpu-sycl"; Label = "Intel SYCL (auto-detected)" }
+    }
+
+    return @{ Mode = "cpu"; Feature = $null; Label = "CPU-only (no GPU SDK found)" }
+}
+
 function Initialize-GpuBuildRoot {
     if (-not $env:WISPER_EP_BUILD_ROOT) {
         $env:WISPER_EP_BUILD_ROOT = "C:\wisper-build"
@@ -179,16 +276,21 @@ function Initialize-GpuBuildRoot {
 }
 
 function Invoke-CargoGpuBuild {
+    param(
+        [Parameter(Mandatory = $true)][string]$Feature,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
     Initialize-GpuBuildRoot
-    Write-Host "Cleaning whisper-rs-sys cache (wisper/target/ only) so CMake picks up the patch..."
+    Write-Host "Cleaning whisper-rs-sys cache so CMake picks up backend/toolchain changes..."
     cargo clean -p whisper-rs-sys
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
     Get-ChildItem (Join-Path $PSScriptRoot "target\debug\build\whisper-rs-sys-*\out\build") -ErrorAction SilentlyContinue |
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "Building with GPU (Vulkan) — shader compilation may take several minutes..."
-    cargo build -p wisper --features gpu-vulkan
+    Write-Host "Building with GPU ($Label) — first compile may take several minutes..."
+    cargo build -p wisper --features $Feature
     exit $LASTEXITCODE
 }
 
@@ -219,6 +321,13 @@ function Invoke-DevCommand {
                 $extraEnv += "set `"PATH=$vulkanBin;%PATH%`""
             }
         }
+        if ($env:CUDA_PATH) {
+            $cudaBin = Join-Path $env:CUDA_PATH "bin"
+            $extraEnv += "set `"CUDA_PATH=$($env:CUDA_PATH)`""
+            if (Test-Path $cudaBin) {
+                $extraEnv += "set `"PATH=$cudaBin;%PATH%`""
+            }
+        }
         $envChain = ($extraEnv -join " && ")
         cmd /c "`"$($script:VsDevCmdPath)`" -no_logo -arch=amd64 && $envChain && $npmLine"
         exit $LASTEXITCODE
@@ -228,39 +337,88 @@ function Invoke-DevCommand {
     exit $LASTEXITCODE
 }
 
-$vulkanSdk = Resolve-VulkanSdk
-if ($vulkanSdk) {
-    $vulkanBin = Join-Path $vulkanSdk "Bin"
-    if ((Test-Path $vulkanBin) -and ($env:Path -notlike "*$vulkanBin*")) {
-        $env:Path = "$vulkanBin;$env:Path"
-    }
-    Write-Host "Vulkan SDK: $vulkanSdk"
-    if (-not $script:MsvcReady) {
-        Write-Warning "GPU build needs MSVC (Desktop development with C++). Falling back to CPU-only."
-        if ($BuildOnly) {
-            cargo build -p wisper
-            exit $LASTEXITCODE
-        }
-        Invoke-DevCommand @("run", "tauri", "--", "dev")
-    } else {
-        Initialize-GpuBuildRoot
-        & "$PSScriptRoot\scripts\patch-vulkan-cmake.ps1"
-        if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
-        }
-        if ($BuildOnly) {
-            Invoke-CargoGpuBuild
-        } else {
-            Write-Host "Building with GPU (Vulkan) support."
-            Invoke-DevCommand @("run", "tauri", "--", "dev", "--features", "gpu-vulkan")
-        }
-    }
-} else {
-    Write-Host "No Vulkan SDK found — CPU-only build."
-    Write-Host "Install from https://vulkan.lunarg.com/ or set VULKAN_SDK, then rerun."
+$script:VsDevCmdPath = $null
+$script:MsvcReady = Initialize-MsvcDevEnvironment
+
+$env:CMAKE = $cmakeExe
+$cmakeBin = "C:\Program Files\CMake\bin"
+if ($env:Path -notlike "*$cmakeBin*") {
+    $env:Path = "$env:Path;$cmakeBin"
+}
+
+& $cmakeExe --version
+
+$selection = Resolve-GpuBackend -Requested $GpuBackend
+Write-Host "GPU backend selection: $($selection.Label) (requested: $GpuBackend)"
+
+if ($selection.Mode -eq "cpu") {
+    Write-Host "Running CPU-only build."
     if ($BuildOnly) {
         cargo build -p wisper
         exit $LASTEXITCODE
     }
     Invoke-DevCommand @("run", "tauri", "--", "dev")
+}
+
+if (-not $script:MsvcReady) {
+    Write-Warning "GPU build needs MSVC (Desktop development with C++). Falling back to CPU-only."
+    if ($BuildOnly) {
+        cargo build -p wisper
+        exit $LASTEXITCODE
+    }
+    Invoke-DevCommand @("run", "tauri", "--", "dev")
+}
+
+Initialize-GpuBuildRoot
+
+switch ($selection.Mode) {
+    "vulkan" {
+        $vulkanSdk = Resolve-VulkanSdk
+        if (-not $vulkanSdk) {
+            Write-Error "Vulkan SDK not found. Install from https://vulkan.lunarg.com/ or set VULKAN_SDK."
+            exit 1
+        }
+        $vulkanBin = Join-Path $vulkanSdk "Bin"
+        if ((Test-Path $vulkanBin) -and ($env:Path -notlike "*$vulkanBin*")) {
+            $env:Path = "$vulkanBin;$env:Path"
+        }
+        Write-Host "Vulkan SDK: $vulkanSdk"
+        & "$PSScriptRoot\scripts\patch-vulkan-cmake.ps1"
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+        if ($BuildOnly) {
+            Invoke-CargoGpuBuild -Feature $selection.Feature -Label $selection.Label
+        } else {
+            Invoke-DevCommand @("run", "tauri", "--", "dev", "--features", $selection.Feature)
+        }
+    }
+    "cuda" {
+        $cudaPath = Resolve-CudaToolkit
+        if (-not $cudaPath) {
+            Write-Error "CUDA Toolkit not found. Install from NVIDIA and set CUDA_PATH, or pass -GpuBackend vulkan for Intel/AMD GPUs."
+            exit 1
+        }
+        Write-Host "CUDA Toolkit: $cudaPath"
+        if ($BuildOnly) {
+            Invoke-CargoGpuBuild -Feature $selection.Feature -Label $selection.Label
+        } else {
+            Invoke-DevCommand @("run", "tauri", "--", "dev", "--features", $selection.Feature)
+        }
+    }
+    "sycl" {
+        if (-not (Initialize-OneApiEnvironment)) {
+            Write-Error "Intel oneAPI not found. Install oneAPI Base Toolkit and set ONEAPI_ROOT, or use -GpuBackend vulkan for Intel iGPU via Vulkan."
+            exit 1
+        }
+        if ($BuildOnly) {
+            Invoke-CargoGpuBuild -Feature $selection.Feature -Label $selection.Label
+        } else {
+            Invoke-DevCommand @("run", "tauri", "--", "dev", "--features", $selection.Feature)
+        }
+    }
+    default {
+        Write-Error "Unknown GPU mode: $($selection.Mode)"
+        exit 1
+    }
 }

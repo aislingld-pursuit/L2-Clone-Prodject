@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
@@ -21,12 +22,61 @@ interface RecordingSummary {
 interface ComputeInfo {
   gpu_available: boolean;
   gpu_backend: string | null;
+  gpu_backend_kind: "metal" | "cuda" | "vulkan" | "intelsycl" | null;
   default_backend: "cpu" | "gpu";
+  cpu_architecture: string;
+  supports_cpu_fallback: boolean;
+}
+
+function computeHint(info: ComputeInfo | null): string {
+  const cpuLine = info
+    ? `CPU fallback uses ggml-cpu on ${info.cpu_architecture}.`
+    : "";
+  if (!info?.gpu_available) {
+    return `This build is CPU-only. Rebuild with a GPU feature: gpu-vulkan (Windows/Linux), gpu-cuda (NVIDIA), or use macOS for Metal. ${cpuLine}`;
+  }
+  const fallbackLine = info.supports_cpu_fallback
+    ? " GPU is tried first; if inference fails, Wisper automatically retries on CPU and shows a notice."
+    : "";
+  switch (info.gpu_backend_kind) {
+    case "metal":
+      return `Apple Metal — Apple Silicon and Intel Macs with a Metal-capable GPU.${fallbackLine} ${cpuLine}`;
+    case "cuda":
+      return `NVIDIA CUDA acceleration is compiled into this build.${fallbackLine} ${cpuLine}`;
+    case "vulkan":
+      return `Vulkan acceleration (NVIDIA, AMD, and Intel iGPU on Windows/Linux).${fallbackLine} ${cpuLine}`;
+    case "intelsycl":
+      return `Intel oneAPI SYCL acceleration is compiled into this build.${fallbackLine} ${cpuLine}`;
+    default:
+      return info.gpu_backend
+        ? `${info.gpu_backend} GPU acceleration is available.${fallbackLine} ${cpuLine}`
+        : `GPU acceleration is available.${fallbackLine} ${cpuLine}`;
+  }
 }
 
 interface TranscribeResult {
   recording_id: string;
   segments: TranscriptSegment[];
+  requested_backend: "cpu" | "gpu";
+  actual_backend: "cpu" | "gpu";
+  used_cpu_fallback: boolean;
+}
+
+interface GpuFallbackNotice {
+  requested_backend: "cpu" | "gpu";
+  from_gpu: string;
+  reason: string;
+}
+
+interface TranscriptionProgress {
+  percent: number;
+  elapsed_ms: number;
+  duration_ms: number;
+}
+
+interface TranscriptionErrorPayload {
+  message: string;
+  cancelled: boolean;
 }
 
 type ComputeChoice = "cpu" | "gpu";
@@ -47,6 +97,16 @@ function formatDate(unixSeconds: number): string {
   });
 }
 
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
 function App() {
   const [modelPath, setModelPath] = useState("");
   const [computeInfo, setComputeInfo] = useState<ComputeInfo | null>(null);
@@ -58,6 +118,11 @@ function App() {
   const [status, setStatus] = useState("Pick an audio file to transcribe locally.");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<TranscriptionProgress | null>(null);
+  const [fallbackNotice, setFallbackNotice] = useState<GpuFallbackNotice | null>(
+    null,
+  );
+  const [lastUsedCpuFallback, setLastUsedCpuFallback] = useState(false);
 
   const refreshLibrary = useCallback(async () => {
     try {
@@ -89,6 +154,75 @@ function App() {
 
     refreshLibrary();
   }, [refreshLibrary]);
+
+  useEffect(() => {
+    const unlistenProgress = listen<TranscriptionProgress>(
+      "transcription-progress",
+      (event) => {
+        setProgress(event.payload);
+      },
+    );
+
+    const unlistenFallback = listen<GpuFallbackNotice>(
+      "transcription-fallback",
+      (event) => {
+        setFallbackNotice(event.payload);
+        setStatus(
+          `${event.payload.from_gpu} failed — retrying on CPU (${computeInfo?.cpu_architecture ?? "ggml-cpu"})…`,
+        );
+      },
+    );
+
+    const unlistenComplete = listen<TranscribeResult>(
+      "transcription-complete",
+      async (event) => {
+        setBusy(false);
+        setProgress(null);
+        setRecordingId(event.payload.recording_id);
+        setSegments(event.payload.segments);
+        setLastUsedCpuFallback(event.payload.used_cpu_fallback);
+        if (event.payload.used_cpu_fallback) {
+          setFallbackNotice(null);
+          setStatus(
+            `Done on CPU after ${computeInfo?.gpu_backend ?? "GPU"} fallback — ${event.payload.segments.length} segment${event.payload.segments.length === 1 ? "" : "s"} saved.`,
+          );
+        } else {
+          setFallbackNotice(null);
+          const device =
+            event.payload.actual_backend === "gpu"
+              ? computeInfo?.gpu_backend ?? "GPU"
+              : "CPU";
+          setStatus(
+            `Done on ${device} — ${event.payload.segments.length} segment${event.payload.segments.length === 1 ? "" : "s"} saved to library.`,
+          );
+        }
+        await refreshLibrary();
+      },
+    );
+
+    const unlistenError = listen<TranscriptionErrorPayload>(
+      "transcription-error",
+      (event) => {
+        setBusy(false);
+        setProgress(null);
+        setFallbackNotice(null);
+        if (event.payload.cancelled) {
+          setStatus("Transcription cancelled.");
+          setError(null);
+        } else {
+          setError(event.payload.message);
+          setStatus("Transcription failed.");
+        }
+      },
+    );
+
+    return () => {
+      void unlistenProgress.then((fn) => fn());
+      void unlistenFallback.then((fn) => fn());
+      void unlistenComplete.then((fn) => fn());
+      void unlistenError.then((fn) => fn());
+    };
+  }, [refreshLibrary, computeInfo?.cpu_architecture, computeInfo?.gpu_backend]);
 
   function selectBackend(next: ComputeChoice) {
     setComputeBackend(next);
@@ -144,6 +278,9 @@ function App() {
 
     setBusy(true);
     setError(null);
+    setProgress(null);
+    setFallbackNotice(null);
+    setLastUsedCpuFallback(false);
     const deviceLabel =
       computeBackend === "gpu" && computeInfo?.gpu_backend
         ? computeInfo.gpu_backend
@@ -152,21 +289,23 @@ function App() {
     setSegments([]);
 
     try {
-      const result = await invoke<TranscribeResult>("transcribe_audio", {
+      await invoke("start_transcription", {
         audioPath,
         useGpu: computeBackend === "gpu",
       });
-      setRecordingId(result.recording_id);
-      setSegments(result.segments);
-      setStatus(
-        `Done — ${result.segments.length} segment${result.segments.length === 1 ? "" : "s"} saved to library.`,
-      );
-      await refreshLibrary();
+    } catch (e) {
+      setBusy(false);
+      setError(String(e));
+      setStatus("Could not start transcription.");
+    }
+  }
+
+  async function cancelTranscription() {
+    try {
+      await invoke("cancel_transcription");
+      setStatus("Cancelling…");
     } catch (e) {
       setError(String(e));
-      setStatus("Transcription failed.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -189,6 +328,8 @@ function App() {
   }
 
   const gpuLabel = computeInfo?.gpu_backend ?? "GPU";
+  const transcribing = busy && progress !== null;
+  const progressPercent = progress?.percent ?? 0;
 
   return (
     <main className="app">
@@ -231,11 +372,13 @@ function App() {
             {gpuLabel}
           </button>
         </div>
-        <p className="hint compute-hint">
-          {computeInfo?.gpu_available
-            ? `Mac uses Metal; Windows uses Vulkan when built with the Vulkan SDK.`
-            : `This build is CPU-only. On Windows, install the Vulkan SDK and rebuild to enable GPU.`}
-        </p>
+        <p className="hint compute-hint">{computeHint(computeInfo)}</p>
+        {computeInfo && (
+          <p className="hint compute-meta">
+            Host CPU: <code>{computeInfo.cpu_architecture}</code>
+            {computeInfo.supports_cpu_fallback && " · automatic GPU → CPU fallback enabled"}
+          </p>
+        )}
       </section>
 
       <section className="panel">
@@ -251,7 +394,47 @@ function App() {
           >
             {busy ? "Transcribing…" : "Transcribe"}
           </button>
+          {busy && (
+            <button type="button" className="cancel" onClick={cancelTranscription}>
+              Cancel
+            </button>
+          )}
         </div>
+
+        {busy && (
+          <div className="progress-block" aria-live="polite">
+            <div className="progress-track" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className="progress-fill"
+                style={{ width: `${Math.max(progressPercent, transcribing ? 2 : 0)}%` }}
+              />
+            </div>
+            <p className="progress-meta">
+              {progress
+                ? `${progressPercent}% · ${formatElapsed(progress.elapsed_ms)} elapsed`
+                : "Loading model…"}
+              {progress?.duration_ms
+                ? ` · ${formatTimestamp(progress.duration_ms)} audio`
+                : ""}
+            </p>
+          </div>
+        )}
+
+        {fallbackNotice && (
+          <div className="fallback-notice" role="status" aria-live="polite">
+            <strong>{fallbackNotice.from_gpu} unavailable</strong>
+            <span>
+              Retrying on CPU ({computeInfo?.cpu_architecture ?? "ggml-cpu"}).
+            </span>
+          </div>
+        )}
+
+        {lastUsedCpuFallback && !busy && !fallbackNotice && (
+          <div className="fallback-complete" role="status">
+            Completed on CPU after GPU fallback.
+          </div>
+        )}
+
         <p className="status">{status}</p>
         {error && <p className="error">{error}</p>}
       </section>

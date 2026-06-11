@@ -11,6 +11,8 @@ Privacy-first, local-only clone of **Whisper Notes** — record, import files, o
 |------|-------------|
 | [TECHNICAL_ARCHITECTURE.md](./TECHNICAL_ARCHITECTURE.md) | Local-first stack (Tauri, whisper.cpp, yt-dlp, SQLite) |
 | [ROADMAP.md](./ROADMAP.md) | Phased delivery plan with AI-agent time estimates |
+| [GPU_BACKENDS.md](./GPU_BACKENDS.md) | **GPU build matrix, features, dev scripts, CI plan** |
+| [CHANGELOG.md](./CHANGELOG.md) | Release and unreleased change history |
 | [Jimmy and Aisling Copy of 20260515 PRD Template - FILLED.docx](./Jimmy%20and%20Aisling%20Copy%20of%2020260515%20PRD%20Template%20-%20FILLED.docx) | Product requirements (local-first, YouTube P0) |
 
 ## Regenerate PRD
@@ -30,7 +32,7 @@ Requires `Aisling Copy of 20260515 PRD Template.docx` in this folder (close in W
 
 ## Status
 
-**Phase 0 in progress** — Tauri 2 desktop app with `wisper-core` (whisper.cpp via whisper-rs). See [ROADMAP.md](./ROADMAP.md).
+**Phase 0 complete · Phase 0.5 (GPU foundation) in progress** — Tauri 2 desktop app with `wisper-core`, SQLite library, background transcription, and multi-backend GPU scaffolding (Vulkan verified on Windows AMD; Metal on macOS; CUDA/SYCL build paths added). See [ROADMAP.md](./ROADMAP.md) and [CHANGELOG.md](./CHANGELOG.md).
 
 ## Development (Phase 0)
 
@@ -38,32 +40,35 @@ Requires `Aisling Copy of 20260515 PRD Template.docx` in this folder (close in W
 
 - [Rust](https://rustup.rs/) (1.70+)
 - [Node.js](https://nodejs.org/) 20+
-- **CMake** (required to build whisper.cpp on Windows)
-- Visual Studio Build Tools (MSVC) on Windows
+- **CMake** (required to build whisper.cpp)
+- Visual Studio Build Tools (MSVC) on Windows — required for GPU builds
+- **GPU (optional):** [Vulkan SDK](https://vulkan.lunarg.com/) and/or [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-downloads) on Windows/Linux; Xcode on macOS for Metal
 
 ### Run the app
 
-Run **one command per line** (pasting multiple commands together causes errors like `installnpm`).
+**Windows**
 
 ```powershell
 cd wisper
 npm install
+.\dev.ps1                      # auto GPU backend or CPU fallback
+.\dev.ps1 -GpuBackend vulkan   # Explicit Vulkan (AMD / Intel iGPU)
+.\dev-cuda.ps1                 # NVIDIA CUDA
 ```
 
-If `cmake --version` fails in your terminal (common right after install), either **restart Cursor** or use the dev script:
+**macOS**
 
-```powershell
-cd wisper
-.\dev.ps1
+```bash
+cd wisper && npm install && chmod +x dev-macos.sh && ./dev-macos.sh
 ```
 
-Or fix PATH for the current session only:
+**Linux**
 
-```powershell
-$env:Path += ";C:\Program Files\CMake\bin"
-cmake --version
-npm run tauri dev
+```bash
+cd wisper && npm install && chmod +x dev-linux.sh && ./dev-linux.sh
 ```
+
+Full GPU details: [GPU_BACKENDS.md](./GPU_BACKENDS.md).
 
 ### Whisper model (one-time)
 

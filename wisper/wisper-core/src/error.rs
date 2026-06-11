@@ -20,4 +20,7 @@ pub enum WisperError {
 
     #[error("storage error: {0}")]
     Storage(String),
+
+    #[error("transcription cancelled")]
+    Cancelled,
 }

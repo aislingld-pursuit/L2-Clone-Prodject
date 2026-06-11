@@ -1,14 +1,20 @@
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use wisper_core::{
-    compute_info, resolve_model_path, transcribe_file, ComputeBackend, ComputeInfo, RecordingSummary,
-    Storage, TranscriptSegment,
+    compute_info, resolve_model_path, transcribe_with_engine, ComputeBackend, ComputeInfo,
+    GpuFallbackNotice, RecordingSummary, Storage, TranscribeOptions, TranscriptSegment,
+    TranscriptionProgress, WhisperEngine, WisperError,
 };
 
 struct AppState {
     storage: Mutex<Storage>,
+    engine: Mutex<WhisperEngine>,
+    cancel: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
 }
 
 fn app_data_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -29,6 +35,13 @@ fn model_path(app: &tauri::AppHandle) -> PathBuf {
     resolve_model_path(&models_dir(app))
 }
 
+fn backend_label(backend: ComputeBackend) -> &'static str {
+    match backend {
+        ComputeBackend::Cpu => "cpu",
+        ComputeBackend::Gpu => "gpu",
+    }
+}
+
 fn file_stem(path: &str) -> String {
     Path::new(path)
         .file_stem()
@@ -36,10 +49,19 @@ fn file_stem(path: &str) -> String {
         .unwrap_or_else(|| "Untitled".into())
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Clone)]
 struct TranscribeResult {
     recording_id: String,
     segments: Vec<TranscriptSegment>,
+    requested_backend: String,
+    actual_backend: String,
+    used_cpu_fallback: bool,
+}
+
+#[derive(Debug, serde::Serialize, Clone)]
+struct TranscriptionErrorPayload {
+    message: String,
+    cancelled: bool,
 }
 
 #[tauri::command]
@@ -91,12 +113,27 @@ fn update_segment(
 }
 
 #[tauri::command]
-fn transcribe_audio(
+fn cancel_transcription(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    if !state.running.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    state.cancel.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+fn start_transcription(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     audio_path: String,
     use_gpu: bool,
-) -> Result<TranscribeResult, String> {
+) -> Result<(), String> {
+    if state.running.swap(true, Ordering::SeqCst) {
+        return Err("Transcription already in progress".into());
+    }
+
+    state.cancel.store(false, Ordering::SeqCst);
+
     let backend = if use_gpu {
         ComputeBackend::Gpu
     } else {
@@ -104,29 +141,99 @@ fn transcribe_audio(
     };
     let model = model_path(&app);
     let path = PathBuf::from(&audio_path);
-    let segments = transcribe_file(&model, path.as_path(), backend).map_err(|e| e.to_string())?;
+    let title = file_stem(&audio_path);
 
-    let model_id = model
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned());
+    let app_handle = app.clone();
+    let cancel = Arc::clone(&state.cancel);
+    let running = Arc::clone(&state.running);
 
-    let recording_id = state
-        .storage
-        .lock()
-        .map_err(|e| e.to_string())?
-        .save_import_transcript(
-            &file_stem(&audio_path),
-            path.as_path(),
-            Some("en"),
-            model_id.as_deref(),
-            &segments,
-        )
-        .map_err(|e| e.to_string())?;
+    thread::spawn(move || {
+        let result: Result<TranscribeResult, WisperError> = (|| {
+            let app_state = app_handle.state::<AppState>();
+            let options = TranscribeOptions::default();
 
-    Ok(TranscribeResult {
-        recording_id,
-        segments,
-    })
+            let transcription = {
+                let mut engine = app_state
+                    .engine
+                    .lock()
+                    .map_err(|e| WisperError::Storage(e.to_string()))?;
+
+                let progress_app = app_handle.clone();
+                let fallback_app = app_handle.clone();
+                transcribe_with_engine(
+                    &mut engine,
+                    &model,
+                    &path,
+                    backend,
+                    &options,
+                    cancel,
+                    move |progress: TranscriptionProgress| {
+                        let _ = progress_app.emit("transcription-progress", &progress);
+                    },
+                    Some(Arc::new(move |notice: GpuFallbackNotice| {
+                        let _ = fallback_app.emit("transcription-fallback", &notice);
+                    })),
+                )?
+            };
+
+            let segments = transcription.segments;
+            let requested_backend = backend_label(transcription.requested_backend).to_string();
+            let actual_backend = backend_label(transcription.actual_backend).to_string();
+            let used_cpu_fallback = transcription.used_cpu_fallback;
+
+            let model_id = model
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned());
+
+            let recording_id = app_state
+                .storage
+                .lock()
+                .map_err(|e| WisperError::Storage(e.to_string()))?
+                .save_import_transcript(
+                    &title,
+                    path.as_path(),
+                    Some("en"),
+                    model_id.as_deref(),
+                    &segments,
+                )?;
+
+            Ok(TranscribeResult {
+                recording_id,
+                segments,
+                requested_backend,
+                actual_backend,
+                used_cpu_fallback,
+            })
+        })();
+
+        running.store(false, Ordering::SeqCst);
+
+        match result {
+            Ok(payload) => {
+                let _ = app_handle.emit("transcription-complete", &payload);
+            }
+            Err(WisperError::Cancelled) => {
+                let _ = app_handle.emit(
+                    "transcription-error",
+                    TranscriptionErrorPayload {
+                        message: "Transcription cancelled.".into(),
+                        cancelled: true,
+                    },
+                );
+            }
+            Err(err) => {
+                let _ = app_handle.emit(
+                    "transcription-error",
+                    TranscriptionErrorPayload {
+                        message: err.to_string(),
+                        cancelled: false,
+                    },
+                );
+            }
+        }
+    });
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -139,6 +246,9 @@ pub fn run() {
             let storage = Storage::open(&db_path(app.handle())).map_err(|e| e.to_string())?;
             app.manage(AppState {
                 storage: Mutex::new(storage),
+                engine: Mutex::new(WhisperEngine::new()),
+                cancel: Arc::new(AtomicBool::new(false)),
+                running: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
@@ -148,7 +258,8 @@ pub fn run() {
             list_recordings,
             get_transcript,
             update_segment,
-            transcribe_audio
+            start_transcription,
+            cancel_transcription
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
