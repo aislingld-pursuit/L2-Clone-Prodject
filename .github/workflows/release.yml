@@ -20,6 +20,8 @@ jobs:
   build-windows-cuda:
     name: Windows CUDA installer
     runs-on: windows-2022
+    env:
+      WISPER_EP_BUILD_ROOT: C:\wisper-build
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -34,7 +36,7 @@ jobs:
         with:
           cuda: "12.6.0"
           method: network
-          sub-packages: '["nvcc","cudart","cublas"]'
+          sub-packages: '["nvcc","cudart","cublas","visual_studio_integration"]'
           use-github-cache: false
           use-local-cache: false
       - name: Verify CUDA
@@ -44,6 +46,14 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $bin
           $env:PATH = "$bin;$env:PATH"
           nvcc -V
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Prepare ExternalProject build root
+        shell: pwsh
+        run: |
+          if (Test-Path $env:WISPER_EP_BUILD_ROOT) {
+            Remove-Item -Recurse -Force $env:WISPER_EP_BUILD_ROOT
+          }
+          New-Item -ItemType Directory -Force -Path $env:WISPER_EP_BUILD_ROOT | Out-Null
       - name: Install frontend dependencies
         run: npm ci
       - name: Build frontend

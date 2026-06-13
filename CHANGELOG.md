@@ -62,13 +62,11 @@ Target: **beta deployable** (installable build for trusted testers), then **Phas
 | Release pipeline (GitHub Releases) | Workflow exists; **no release published yet** |
 | First-run onboarding (model + yt-dlp) | Done — setup banner + model guard |
 | Week 2 UX (progressive disclosure) | PRD done — implementation pending |
-| Version sync (UI vs tags) | **0.2.0-beta.6** — aligned with next tag |
+| Version sync (UI vs tags) | **0.2.0-beta.7** — aligned with next tag |
 
-**Tag `v0.2.0-beta.4`** — macOS upload **fixed**; Windows CUDA still failing (3772776473 full install).
+**Tag `v0.2.0-beta.6`** — CUDA install **fixed**; macOS + Linux bundles **green**; Windows failed at CMake (`No CUDA toolset found` — needs `visual_studio_integration`).
 
-**Tag `v0.2.0-beta.5`** — manual network installer script; failed in ~30s (wrong sub-package set).
-
-**Next:** tag `v0.2.0-beta.6` → verify all three jobs + GitHub Release publish.
+**Next:** tag `v0.2.0-beta.7` → full three-platform release publish.
 
 See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./QA-CHECKLIST.md).
 
