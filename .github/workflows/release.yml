@@ -29,7 +29,7 @@ jobs:
           cache-dependency-path: wisper/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@d34c721df9930a1f5375dbe0f6e52af57c7f56e1 # v0.2.15
+        uses: Jimver/cuda-toolkit@3d45d157f327c09c04b50ee6ccdea2d9d017ec76 # v0.2.35
         with:
           cuda: "12.6.3"
           sub-packages: '["nvcc", "cudart", "cublas", "cublasLt"]'

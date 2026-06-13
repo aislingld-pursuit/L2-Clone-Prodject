@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
 interface TranscriptSegment {
@@ -675,12 +675,11 @@ function App() {
     setError(null);
     try {
       const text = await invoke<string>("export_transcript_txt", { recordingId });
-      const path = await save({
-        defaultPath: `${safeExportFilename(activeTitle ?? "transcript")}.txt`,
-        filters: [{ name: "Text", extensions: ["txt"] }],
+      const path = await invoke<string | null>("save_transcript_txt_file", {
+        contents: text,
+        defaultFilename: `${safeExportFilename(activeTitle ?? "transcript")}.txt`,
       });
       if (path) {
-        await invoke("write_text_file", { path, contents: text });
         setStatus(`Exported ${path.split(/[/\\]/).pop()}.`);
       }
     } catch (e) {

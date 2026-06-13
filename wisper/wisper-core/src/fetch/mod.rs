@@ -1,12 +1,76 @@
 use std::io::{BufRead, BufReader};
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
+use url::Url;
 use uuid::Uuid;
 
 use crate::error::WisperError;
+
+const BLOCKED_HOSTNAMES: &[&str] = &[
+    "localhost",
+    "localhost.localdomain",
+    "metadata.google.internal",
+];
+
+fn is_private_or_local_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+        }
+        IpAddr::V6(v6) => {
+            if v6.is_loopback() || v6.is_unspecified() {
+                return true;
+            }
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_private_or_local_ip(IpAddr::V4(v4));
+            }
+            let segments = v6.segments();
+            (segments[0] & 0xfe00) == 0xfc00 || (segments[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
+fn is_blocked_hostname(host: &str) -> bool {
+    let lower = host.trim_end_matches('.').to_ascii_lowercase();
+    BLOCKED_HOSTNAMES.iter().any(|blocked| {
+        lower == *blocked || lower.ends_with(&format!(".{blocked}"))
+    })
+}
+
+fn validate_public_fetch_target(url: &Url) -> Result<(), WisperError> {
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(WisperError::Fetch(
+            "URL must not include embedded credentials".into(),
+        ));
+    }
+
+    let host = url
+        .host_str()
+        .ok_or_else(|| WisperError::Fetch("URL must include a host".into()))?;
+
+    if is_blocked_hostname(host) {
+        return Err(WisperError::Fetch(
+            "URL host is not allowed for import".into(),
+        ));
+    }
+
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if is_private_or_local_ip(ip) {
+            return Err(WisperError::Fetch(
+                "URL must not target private or local network addresses".into(),
+            ));
+        }
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DownloadProgress {
@@ -34,12 +98,16 @@ pub fn normalize_url(url: &str) -> Result<String, WisperError> {
     if trimmed.is_empty() {
         return Err(WisperError::Fetch("URL is empty".into()));
     }
-    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+
+    let parsed = Url::parse(trimmed).map_err(|e| WisperError::Fetch(format!("invalid URL: {e}")))?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
         return Err(WisperError::Fetch(
             "URL must start with http:// or https://".into(),
         ));
     }
-    Ok(trimmed.to_string())
+
+    validate_public_fetch_target(&parsed)?;
+    Ok(parsed.to_string())
 }
 
 fn find_in_path(name: &str) -> Option<PathBuf> {
@@ -281,6 +349,29 @@ mod tests {
     use super::*;
     use std::fs::File;
     use std::io::Write;
+
+    #[test]
+    fn normalize_url_rejects_private_targets() {
+        for url in [
+            "http://127.0.0.1/video",
+            "http://localhost/watch",
+            "http://192.168.0.1/stream",
+            "http://10.0.0.5/file",
+            "http://169.254.169.254/latest/meta-data",
+            "https://user:pass@example.com/video",
+        ] {
+            assert!(
+                normalize_url(url).is_err(),
+                "expected blocked URL: {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn normalize_url_accepts_public_http_urls() {
+        let url = normalize_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ").expect("public url");
+        assert!(url.starts_with("https://www.youtube.com/"));
+    }
 
     #[test]
     fn cleanup_partial_download_removes_matching_files() {

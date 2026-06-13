@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use mic::{MicRecorder, MicRecordingStatus};
 use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
 use wisper_core::{
     app_about, compute_info, download_url, format_transcript_txt, model_status, resolve_model_path,
@@ -324,8 +325,28 @@ fn export_transcript_txt(
 }
 
 #[tauri::command]
-fn write_text_file(path: String, contents: String) -> Result<(), String> {
-    std::fs::write(&path, contents).map_err(|e| e.to_string())
+async fn save_transcript_txt_file(
+    app: tauri::AppHandle,
+    contents: String,
+    default_filename: String,
+) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Export transcript")
+        .set_file_name(default_filename)
+        .add_filter("Text", &["txt"])
+        .blocking_save_file();
+
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+
+    let path = picked
+        .into_path()
+        .map_err(|e| format!("invalid save path: {e}"))?;
+    std::fs::write(&path, contents).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[tauri::command]
@@ -622,7 +643,7 @@ pub fn run() {
             search_library,
             delete_recording,
             export_transcript_txt,
-            write_text_file,
+            save_transcript_txt_file,
             start_recording,
             stop_recording,
             get_recording_status,
