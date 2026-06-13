@@ -22,6 +22,8 @@ Wisper Clone PRD*.docx
 *.docx
 *.pptx
 *.pdf
+generate_pitch.py
+release-assets/
 
 # Wisper app (Tauri + Rust)
 wisper/node_modules/
