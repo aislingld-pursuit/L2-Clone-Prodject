@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Docs in git** — only `README.md` and `CHANGELOG.md` are committed; `TECHNICAL_ARCHITECTURE.md`, `ROADMAP.md`, `GPU_BACKENDS.md`, and office docs stay local (`.gitignore`).
 - **Intel SYCL demoted to advanced-only** — removed from `dev.ps1` auto-detect; use `dev-sycl.ps1` explicitly. Intel iGPU users should use Vulkan builds.
 - PRD `.docx` files stay local (`.gitignore`); README no longer links committed PRD paths.
 

@@ -132,4 +132,4 @@ jobs:
             3. For YouTube/URL import, install [yt-dlp](https://github.com/yt-dlp/yt-dlp) separately.
             4. For full-length MP3 import, install [ffmpeg](https://ffmpeg.org/) (symphonia can truncate some VBR MP3s; Wisper falls back to ffmpeg when installed).
 
-            See [GPU_BACKENDS.md](https://github.com/${{ github.repository }}/blob/master/GPU_BACKENDS.md) for which artifact matches your GPU.
+            See the repo README — **Which build should I use?** — for which artifact matches your GPU.

@@ -9,12 +9,9 @@ Privacy-first, local-only clone of **Whisper Notes** — record, import files, o
 
 | File | Description |
 |------|-------------|
-| [TECHNICAL_ARCHITECTURE.md](./TECHNICAL_ARCHITECTURE.md) | Local-first stack (Tauri, whisper.cpp, yt-dlp, SQLite) |
-| [ROADMAP.md](./ROADMAP.md) | Phased delivery plan with AI-agent time estimates |
-| [GPU_BACKENDS.md](./GPU_BACKENDS.md) | **GPU build matrix, features, dev scripts, CI plan** |
-| [CHANGELOG.md](./CHANGELOG.md) | Release and unreleased change history |
+| [CHANGELOG.md](./CHANGELOG.md) | Release and unreleased change history (committed) |
 
-Product requirements (PRD) live in local `.docx` files on each developer machine — not committed to git.
+Other project docs (`TECHNICAL_ARCHITECTURE.md`, `ROADMAP.md`, `GPU_BACKENDS.md`, PRD `.docx`) stay on each developer machine — not committed to git.
 
 ## Regenerate PRD
 
@@ -33,11 +30,11 @@ Requires `Aisling Copy of 20260515 PRD Template.docx` in this folder (close in W
 
 ## Status
 
-**Phase 0.5 complete · Phase 1 in progress** — mic, file/URL import, drag-and-drop, language select, CUDA verified (RTX 5080). See [ROADMAP.md](./ROADMAP.md).
+**Phase 0.5 complete · Phase 1 in progress** — mic, file/URL import, drag-and-drop, language select, CUDA verified (RTX 5080). Phase plan lives in local `ROADMAP.md`.
 
 ## Which build should I use?
 
-Each installer links **one** GPU backend (or CPU-only). Pick by hardware — see [GPU_BACKENDS.md](./GPU_BACKENDS.md) for details.
+Each installer links **one** GPU backend (or CPU-only). Pick by hardware:
 
 | Your hardware | Download / build | About screen shows |
 |---------------|------------------|-------------------|
@@ -88,7 +85,7 @@ cd wisper && npm install && chmod +x dev-macos.sh && ./dev-macos.sh
 cd wisper && npm install && chmod +x dev-linux.sh && ./dev-linux.sh
 ```
 
-Full GPU details: [GPU_BACKENDS.md](./GPU_BACKENDS.md).
+Full GPU script details: local `GPU_BACKENDS.md` or the table above.
 
 ### Whisper model (one-time)
 
