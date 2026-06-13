@@ -438,6 +438,30 @@ mod tests {
     }
 
     #[test]
+    fn looks_truncated_respects_threshold() {
+        let truncated = LoadedAudio {
+            pcm: vec![],
+            decoded_duration_ms: 363_000,
+            container_duration_ms: Some(726_000),
+        };
+        assert!(looks_truncated(&truncated));
+
+        let within_tolerance = LoadedAudio {
+            pcm: vec![],
+            decoded_duration_ms: 360_000,
+            container_duration_ms: Some(365_000),
+        };
+        assert!(!looks_truncated(&within_tolerance));
+
+        let no_container_metadata = LoadedAudio {
+            pcm: vec![],
+            decoded_duration_ms: 360_000,
+            container_duration_ms: None,
+        };
+        assert!(!looks_truncated(&no_container_metadata));
+    }
+
+    #[test]
     fn load_16bit_wav_has_usable_amplitude() {
         let path = sample_path("jfk-sample.wav");
         if !path.exists() {

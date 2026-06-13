@@ -58,6 +58,7 @@ Each installer links **one** GPU backend (or CPU-only). Pick by hardware — see
 - [Node.js](https://nodejs.org/) 20+
 - **CMake** (required to build whisper.cpp)
 - Visual Studio Build Tools (MSVC) on Windows — required for GPU builds
+- **ffmpeg** (recommended) — full-length MP3 import when symphonia truncates early (`winget install ffmpeg`)
 - **GPU (optional):** [Vulkan SDK](https://vulkan.lunarg.com/) and/or [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-downloads) on Windows/Linux; Xcode on macOS for Metal
 
 ### Run the app
@@ -91,3 +92,12 @@ Full GPU details: [GPU_BACKENDS.md](./GPU_BACKENDS.md).
 Download a GGML model (e.g. `ggml-large-v3-turbo.bin` or `ggml-base.en.bin` for faster testing) from [Hugging Face — whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp) and place it at the path shown in the app under **Whisper model** (typically `%APPDATA%\com.aislingldpursuit.wisper\models\` on Windows).
 
 Transcription is fully offline once the model is installed.
+
+### Smoke test (before PR)
+
+```powershell
+cd wisper
+.\scripts\smoke-test.ps1
+```
+
+Linux/macOS: `chmod +x scripts/smoke-test.sh && ./scripts/smoke-test.sh`
