@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.1.0...HEAD)
 
 ### Added
 
@@ -13,10 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Local planning docs** — `ROADMAP.md`, `TODO.md`, `QA-CHECKLIST.md` (QA-ordered tasks; not committed — see `.gitignore`).
 - **Security audit doc** — `Wisper-Security-Audit.docx` (local; regenerate via `generate_security_audit.py`).
 - **Phase 1 import flows** — microphone recording (cpal), file picker + drag-and-drop (audio/video), YouTube/URL import via yt-dlp, language select, two-step download → transcribe progress, library source labels (“Downloaded from URL” vs “Fully offline”).
-- **`wisper/scripts/download-model.ps1`** — download GGML models into app data (tiny / base / large-turbo).
+- `**wisper/scripts/download-model.ps1`** — download GGML models into app data (tiny / base / large-turbo).
 - **Download guide** — README and [GPU_BACKENDS.md](./GPU_BACKENDS.md) “Which installer?” table (NVIDIA → CUDA, AMD/Intel → Vulkan, Mac → Metal, fallback → CPU).
 - **Phase 1 UI polish** — two-step progress (Download → Transcribe) and library labels.
-- **`wisper/scripts/smoke-test.ps1`** / **`smoke-test.sh`** — local CI-parity smoke (cargo test, cargo check, npm build).
+- `**wisper/scripts/smoke-test.ps1`** / `**smoke-test.sh**` — local CI-parity smoke (cargo test, cargo check, npm build).
 - **Truncation unit test** — `looks_truncated` threshold logic in `wisper-core`.
 
 ### Changed
@@ -39,46 +39,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tier 1 ship blockers** — mic cpal stream errors surfaced at start/stop instead of silent empty recordings; URL import errors tagged `download` vs `transcribe` in UI status; partial yt-dlp downloads cleaned up on cancel/failure.
 - **Phase 2 library** — FTS5 transcript search, delete recording (DB + audio file under app data), export transcript as TXT, copy to clipboard.
 - **First-run onboarding** — setup banner when Whisper model or yt-dlp is missing; `get_model_status` blocks transcription until a model is installed.
-- **`wisper/scripts/build-release.ps1`** — local Windows release bundle (CUDA / Vulkan / CPU).
-- **GitHub Release workflow** — [`.github/workflows/release.yml`](./.github/workflows/release.yml) builds platform installers on `v*` tags.
-- **`download-model.ps1`** — exit non-zero when `Invoke-WebRequest` fails.
+- `**wisper/scripts/build-release.ps1`** — local Windows release bundle (CUDA / Vulkan / CPU).
+- **GitHub Release workflow** — `[.github/workflows/release.yml](./.github/workflows/release.yml)` builds platform installers on `v*` tags.
+- `**download-model.ps1`** — exit non-zero when `Invoke-WebRequest` fails.
 - **Linux CI** — `libasound2-dev` for mic/cpal builds (CPU smoke, Linux Vulkan, ARM64 CPU).
 
 ### Deploy readiness (in progress)
 
 Target: **beta deployable** (installable build for trusted testers), then **Phase 4** public release matrix.
 
-| Track | Status |
-|-------|--------|
-| Phase 1 exit QA (manual) | Automated preflight passed — manual checklist pending (`phase1-exit-qa.ps1`) |
-| Long MP3 decode (ffmpeg fallback) | Done — verified 12-min + 59-min MP3 on CUDA |
-| Release CI (tag builds) | **Blocked** — see beta.3 notes below |
-| Desktop smoke (frontend build in CI) | Done — `npm run build` in CPU smoke job |
-| Tier 1 bug fixes (mic, URL errors, orphan downloads) | Done |
-| Security SEC-001 / SEC-002 | Done — save dialog export + URL SSRF hardening |
-| Security SEC-003+ (CSP, capabilities) | Pending — before wider beta |
-| Video import verify (MP4/MOV) | Automated symphonia test + manual drag-drop |
-| Phase 2 minimum (export, search, delete) | Done — TXT export, clipboard, FTS search, delete |
-| Release pipeline (GitHub Releases) | Workflow exists; **no release published yet** |
-| First-run onboarding (model + yt-dlp) | Done — setup banner + model guard |
-| Week 2 UX (progressive disclosure) | PRD done — implementation pending |
-| Version sync (UI vs tags) | **0.2.0-beta.10** — aligned with next tag |
+
+| Track                                                | Status                                                                       |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Phase 1 exit QA (manual)                             | Automated preflight passed — manual checklist pending (`phase1-exit-qa.ps1`) |
+| Long MP3 decode (ffmpeg fallback)                    | Done — verified 12-min + 59-min MP3 on CUDA                                  |
+| Release CI (tag builds)                              | **Blocked** — see beta.3 notes below                                         |
+| Desktop smoke (frontend build in CI)                 | Done — `npm run build` in CPU smoke job                                      |
+| Tier 1 bug fixes (mic, URL errors, orphan downloads) | Done                                                                         |
+| Security SEC-001 / SEC-002                           | Done — save dialog export + URL SSRF hardening                               |
+| Security SEC-003+ (CSP, capabilities)                | Pending — before wider beta                                                  |
+| Video import verify (MP4/MOV)                        | Automated symphonia test + manual drag-drop                                  |
+| Phase 2 minimum (export, search, delete)             | Done — TXT export, clipboard, FTS search, delete                             |
+| Release pipeline (GitHub Releases)                   | Workflow exists; **no release published yet**                                |
+| First-run onboarding (model + yt-dlp)                | Done — setup banner + model guard                                            |
+| Week 2 UX (progressive disclosure)                   | PRD done — implementation pending                                            |
+| Version sync (UI vs tags)                            | **0.2.0-beta.11** — aligned with next tag                                    |
+
 
 **Tag `v0.2.0-beta.9`** — CUDA install + gpu-cuda compile succeeded (~16m); MSI bundling failed (WiX requires numeric-only pre-release; `beta` invalid). macOS/Linux green.
 
-**Next:** tag `v0.2.0-beta.10` — Windows NSIS bundle (skip MSI); publish GitHub Release.
+**Tag `v0.2.0-beta.10`** — all three platform builds green; publish failed uploading `artifacts/**/*` (duplicate `.so` names).
+
+**Next:** tag `v0.2.0-beta.11` — upload `.exe`/`.AppImage`/`.dmg` only; publish GitHub Release.
 
 See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./QA-CHECKLIST.md).
 
 ### Added (Phase 1 — prior)
 
 - **About dialog** — version, platform, release artifact name (`wisper-windows-cuda`, etc.), compiled GPU backend, CPU architecture, fallback status (`get_app_about` / About button in header).
-- **`wisper/scripts/verify-cuda.ps1`** — NVIDIA preflight + optional `gpu-cuda` build for Phase 0.5 CUDA verification (build verified RTX 5080 + CUDA 13.3).
-- **`TranscriptionResult`** and **`GpuFallbackNotice`** — structured GPU → CPU fallback metadata from `wisper-core`.
-- Tauri events: **`transcription-fallback`** (during retry) and extended **`transcription-complete`** (`used_cpu_fallback`, `actual_backend`).
+- `**wisper/scripts/verify-cuda.ps1`** — NVIDIA preflight + optional `gpu-cuda` build for Phase 0.5 CUDA verification (build verified RTX 5080 + CUDA 13.3).
+- `**TranscriptionResult**` and `**GpuFallbackNotice**` — structured GPU → CPU fallback metadata from `wisper-core`.
+- Tauri events: `**transcription-fallback**` (during retry) and extended `**transcription-complete**` (`used_cpu_fallback`, `actual_backend`).
 - UI fallback banner and completion notice when GPU fails and CPU completes the job.
-- **`cpu_architecture`** and **`supports_cpu_fallback`** in `ComputeInfo` (Intel / AMD x86_64, ARM64, Apple Silicon).
-- GitHub Actions [`.github/workflows/desktop.yml`](./.github/workflows/desktop.yml): CPU smoke, Linux/Windows Vulkan, macOS Metal, Linux ARM64 jobs.
+- `**cpu_architecture**` and `**supports_cpu_fallback**` in `ComputeInfo` (Intel / AMD x86_64, ARM64, Apple Silicon).
+- GitHub Actions `[.github/workflows/desktop.yml](./.github/workflows/desktop.yml)`: CPU smoke, Linux/Windows Vulkan, macOS Metal, Linux ARM64 jobs.
 
 ### Changed
 
@@ -109,12 +113,12 @@ See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./
 
 ---
 
-## [0.1.0] - 2026-06-08
+## [0.1.0](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.1.0) - 2026-06-08
 
 ### Added
 
 - **Tauri 2 + React** desktop shell under `wisper/`.
-- **`wisper-core`** Rust crate: audio decode (symphonia), 16 kHz PCM pipeline, whisper.cpp via whisper-rs 0.16.
+- `**wisper-core`** Rust crate: audio decode (symphonia), 16 kHz PCM pipeline, whisper.cpp via whisper-rs 0.16.
 - **SQLite library**: recordings, transcript segments, persistence across restarts.
 - **Transcript UI**: timestamped segments with inline editing and save.
 - **Background transcription** with progress events, elapsed time, and cancel support.
@@ -122,8 +126,8 @@ See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./
 - **GPU transcription on Windows** via Vulkan (`gpu-vulkan` feature); verified on AMD Radeon 890M.
 - **GPU → CPU fallback** on transcription failure (invalidate GPU context, retry on CPU).
 - **Abort callback fix** for whisper-rs GPU stability (manual C trampoline + `AbortGuard`).
-- **`dev.ps1`**: MSVC + CMake + Vulkan SDK wiring; space-free ExternalProject root for OneDrive paths.
-- **`scripts/patch-vulkan-cmake.ps1`**: nested `vulkan-shaders-gen` build fix on Windows.
+- `**dev.ps1`**: MSVC + CMake + Vulkan SDK wiring; space-free ExternalProject root for OneDrive paths.
+- `**scripts/patch-vulkan-cmake.ps1**`: nested `vulkan-shaders-gen` build fix on Windows.
 
 ### Fixed
 
@@ -133,5 +137,3 @@ See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./
 
 ---
 
-[Unreleased]: https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.1.0
