@@ -62,13 +62,11 @@ Target: **beta deployable** (installable build for trusted testers), then **Phas
 | Release pipeline (GitHub Releases) | Workflow exists; **no release published yet** |
 | First-run onboarding (model + yt-dlp) | Done — setup banner + model guard |
 | Week 2 UX (progressive disclosure) | PRD done — implementation pending |
-| Version sync (UI vs tags) | **0.2.0-beta.9** — aligned with next tag |
+| Version sync (UI vs tags) | **0.2.0-beta.10** — aligned with next tag |
 
-**Tag `v0.2.0-beta.7`** — VS integration fixed CMake toolset; build failed on missing `CUDA::cublas` (needs `cublas_dev`).
+**Tag `v0.2.0-beta.9`** — CUDA install + gpu-cuda compile succeeded (~16m); MSI bundling failed (WiX requires numeric-only pre-release; `beta` invalid). macOS/Linux green.
 
-**Tag `v0.2.0-beta.8`** — added `cudart_dev` + `cublas_dev`; Jimver CUDA installer failed immediately (exit 3772776473). macOS/Linux still green.
-
-**Next:** tag `v0.2.0-beta.9` — `cublas_dev` only (llama.cpp package set); full three-platform release publish.
+**Next:** tag `v0.2.0-beta.10` — Windows NSIS bundle (skip MSI); publish GitHub Release.
 
 See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./QA-CHECKLIST.md).
 
