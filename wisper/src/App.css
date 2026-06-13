@@ -246,6 +246,32 @@ button:disabled {
   margin-top: 1rem;
 }
 
+.progress-steps {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.8rem;
+}
+
+.progress-step {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.progress-step.active {
+  color: #95d5b2;
+}
+
+.progress-step.done {
+  color: #40916c;
+}
+
+.progress-step-sep {
+  color: #4b5563;
+  font-size: 0.75rem;
+}
+
 .progress-track {
   height: 8px;
   border-radius: 999px;
@@ -255,8 +281,15 @@ button:disabled {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #2d6a4f, #52b788);
   transition: width 0.25s ease;
+}
+
+.progress-fill.transcribe {
+  background: linear-gradient(90deg, #2d6a4f, #52b788);
+}
+
+.progress-fill.download {
+  background: linear-gradient(90deg, #1d4e89, #4ea8de);
 }
 
 .progress-meta {
@@ -264,6 +297,26 @@ button:disabled {
   font-size: 0.85rem;
   color: #9aa0a6;
   font-family: ui-monospace, Consolas, monospace;
+}
+
+.progress-phase {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #d8f3dc;
+  background: #1b4332;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.progress-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #7a8494;
 }
 
 .field-label {
@@ -481,6 +534,14 @@ button:disabled {
 .library-meta {
   font-size: 0.8rem;
   color: #9aa0a6;
+}
+
+.library-source.from-url {
+  color: #74c0fc;
+}
+
+.library-source.offline {
+  color: #95d5b2;
 }
 
 .segment-edit {

@@ -13,7 +13,8 @@ Privacy-first, local-only clone of **Whisper Notes** — record, import files, o
 | [ROADMAP.md](./ROADMAP.md) | Phased delivery plan with AI-agent time estimates |
 | [GPU_BACKENDS.md](./GPU_BACKENDS.md) | **GPU build matrix, features, dev scripts, CI plan** |
 | [CHANGELOG.md](./CHANGELOG.md) | Release and unreleased change history |
-| [Jimmy and Aisling Copy of 20260515 PRD Template - FILLED.docx](./Jimmy%20and%20Aisling%20Copy%20of%2020260515%20PRD%20Template%20-%20FILLED.docx) | Product requirements (local-first, YouTube P0) |
+
+Product requirements (PRD) live in local `.docx` files on each developer machine — not committed to git.
 
 ## Regenerate PRD
 
@@ -32,9 +33,24 @@ Requires `Aisling Copy of 20260515 PRD Template.docx` in this folder (close in W
 
 ## Status
 
-**Phase 0.5 complete · Phase 1 next** — CI green (6 jobs); Windows **Vulkan + CUDA** verified (RTX 5080, CUDA 13.3); About screen + model download scripts. See [ROADMAP.md](./ROADMAP.md).
+**Phase 0.5 complete · Phase 1 in progress** — mic, file/URL import, drag-and-drop, language select, CUDA verified (RTX 5080). See [ROADMAP.md](./ROADMAP.md).
 
-## Development (Phase 0)
+## Which build should I use?
+
+Each installer links **one** GPU backend (or CPU-only). Pick by hardware — see [GPU_BACKENDS.md](./GPU_BACKENDS.md) for details.
+
+| Your hardware | Download / build | About screen shows |
+|---------------|------------------|-------------------|
+| **NVIDIA GPU** (GeForce / RTX) | `wisper-windows-cuda` or `.\dev-cuda.ps1` | CUDA |
+| **AMD or Intel GPU** on Windows/Linux | `wisper-*-vulkan` or `.\dev.ps1 -GpuBackend vulkan` | Vulkan |
+| **Apple Mac** (M-series or Intel) | `wisper-macos-universal` or `./dev-macos.sh` | Metal |
+| **No GPU / old PC / CI smoke** | `wisper-*-cpu` or `.\dev.ps1 -GpuBackend cpu` | CPU-only |
+
+**Intel iGPU on Windows/Linux:** use the **Vulkan** build — not SYCL. SYCL remains an advanced developer-only path (`dev-sycl.ps1`).
+
+**Daily driver (Windows + NVIDIA):** `cd wisper` then `.\dev-cuda.ps1`.
+
+## Development
 
 ### Prerequisites
 

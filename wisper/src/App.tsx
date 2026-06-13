@@ -172,6 +172,16 @@ function formatElapsed(ms: number): string {
   return `${seconds}s`;
 }
 
+function librarySourceLabel(item: RecordingSummary): string {
+  if (item.source === "url" || item.source_url) {
+    return "Downloaded from URL";
+  }
+  if (item.source === "mic") {
+    return "Fully offline · Mic";
+  }
+  return "Fully offline";
+}
+
 function App() {
   const [modelPath, setModelPath] = useState("");
   const [computeInfo, setComputeInfo] = useState<ComputeInfo | null>(null);
@@ -200,6 +210,7 @@ function App() {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(
     null,
   );
+  const [urlJobActive, setUrlJobActive] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   const refreshLibrary = useCallback(async () => {
@@ -319,6 +330,7 @@ function App() {
         setBusy(false);
         setProgress(null);
         setDownloadProgress(null);
+        setUrlJobActive(false);
         setRecordingId(event.payload.recording_id);
         setSegments(event.payload.segments);
         setLastUsedCpuFallback(event.payload.used_cpu_fallback);
@@ -347,6 +359,7 @@ function App() {
         setBusy(false);
         setProgress(null);
         setDownloadProgress(null);
+        setUrlJobActive(false);
         setFallbackNotice(null);
         if (event.payload.cancelled) {
           setStatus("Transcription cancelled.");
@@ -503,6 +516,7 @@ function App() {
     setError(null);
     setProgress(null);
     setDownloadProgress({ percent: null, status: "Starting download…" });
+    setUrlJobActive(true);
     setFallbackNotice(null);
     setLastUsedCpuFallback(false);
     setSegments([]);
@@ -517,6 +531,7 @@ function App() {
     } catch (e) {
       setBusy(false);
       setDownloadProgress(null);
+      setUrlJobActive(false);
       setError(String(e));
       setStatus("Could not start URL import.");
     }
@@ -594,12 +609,19 @@ function App() {
 
   const gpuLabel = computeInfo?.gpu_backend ?? "GPU";
   const downloading = busy && downloadProgress !== null;
+  const transcribing = busy && !downloading;
+  const showUrlSteps = urlJobActive && busy;
   const progressPercent = progress?.percent ?? downloadProgress?.percent ?? 0;
+  const progressStep = downloading ? "Download" : transcribing ? "Transcribe" : null;
   const progressLabel = downloading
-    ? downloadProgress?.status ?? "Downloading…"
+    ? downloadProgress?.percent != null
+      ? `Downloading… ${downloadProgress.percent}%`
+      : downloadProgress?.status ?? "Downloading…"
     : progress
       ? `${progressPercent}% · ${formatElapsed(progress.elapsed_ms)} elapsed`
-      : "Loading model…";
+      : transcribing
+        ? "Loading model…"
+        : "";
 
   return (
     <main className="app">
@@ -862,18 +884,44 @@ function App() {
 
         {busy && (
           <div className="progress-block" aria-live="polite">
-            <div className="progress-track" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100}>
+            {showUrlSteps && (
+              <div className="progress-steps" aria-hidden="true">
+                <span
+                  className={`progress-step${downloading ? " active" : transcribing ? " done" : ""}`}
+                >
+                  1 · Download
+                </span>
+                <span className="progress-step-sep">→</span>
+                <span className={`progress-step${transcribing ? " active" : ""}`}>
+                  2 · Transcribe
+                </span>
+              </div>
+            )}
+            <div
+              className="progress-track"
+              role="progressbar"
+              aria-valuenow={progressPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={progressStep ? `${progressStep} progress` : "Transcription progress"}
+            >
               <div
-                className="progress-fill"
+                className={`progress-fill${downloading ? " download" : " transcribe"}`}
                 style={{ width: `${Math.max(progressPercent, busy ? 2 : 0)}%` }}
               />
             </div>
             <p className="progress-meta">
-              {progressLabel}
-              {!downloading && progress?.duration_ms
+              {progressStep && <span className="progress-phase">{progressStep}</span>}
+              {progressLabel || (transcribing ? "Transcribing…" : "Working…")}
+              {transcribing && progress?.duration_ms
                 ? ` · ${formatTimestamp(progress.duration_ms)} audio`
                 : ""}
             </p>
+            {downloading && (
+              <p className="progress-hint">
+                Network used for download only — transcription stays offline.
+              </p>
+            )}
           </div>
         )}
 
@@ -910,7 +958,12 @@ function App() {
                 >
                   <span className="library-title">{item.title}</span>
                   <span className="library-meta">
-                    {item.source === "mic" ? "Mic · " : item.source === "url" ? "URL · " : ""}
+                    <span
+                      className={`library-source${item.source === "url" || item.source_url ? " from-url" : " offline"}`}
+                    >
+                      {librarySourceLabel(item)}
+                    </span>
+                    {" · "}
                     {formatDate(item.created_at)}
                     {item.duration_ms != null && ` · ${formatTimestamp(item.duration_ms)}`}
                   </span>

@@ -162,9 +162,8 @@ pub fn compiled_gpu_backend() -> Option<GpuBackendKind> {
 pub fn validate_backend(backend: ComputeBackend) -> Result<(), crate::WisperError> {
     if backend == ComputeBackend::Gpu && compiled_gpu_backend().is_none() {
         return Err(crate::WisperError::Transcription(
-            "GPU is not available in this build. Rebuild with a GPU feature: \
-             gpu-vulkan (Vulkan / Intel iGPU), gpu-cuda (NVIDIA), gpu-sycl (Intel oneAPI), \
-             or use a macOS build for Metal."
+            "GPU is not available in this build. Rebuild with gpu-vulkan (AMD/Intel/NVIDIA), \
+             gpu-cuda (NVIDIA), or use a macOS build for Metal."
                 .into(),
         ));
     }

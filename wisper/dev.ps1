@@ -296,15 +296,13 @@ function Resolve-GpuBackend {
         return @{ Mode = "sycl"; Feature = "gpu-sycl"; Label = "Intel SYCL (oneAPI)" }
     }
 
-    # auto: CUDA only when an NVIDIA GPU is present, then Vulkan, then Intel SYCL
+    # auto: NVIDIA+CUDA toolkit → CUDA; else Vulkan SDK → Vulkan; else CPU.
+    # Intel iGPU/dGPU: use Vulkan (primary). SYCL is advanced-only via dev-sycl.ps1.
     if ((Test-NvidiaGpuPresent) -and (Resolve-CudaToolkit)) {
         return @{ Mode = "cuda"; Feature = "gpu-cuda"; Label = "CUDA (auto-detected NVIDIA GPU)" }
     }
     if (Resolve-VulkanSdk) {
         return @{ Mode = "vulkan"; Feature = "gpu-vulkan"; Label = "Vulkan (auto-detected)" }
-    }
-    if (Resolve-OneApiRoot) {
-        return @{ Mode = "sycl"; Feature = "gpu-sycl"; Label = "Intel SYCL (auto-detected)" }
     }
 
     return @{ Mode = "cpu"; Feature = $null; Label = "CPU-only (no GPU SDK found)" }

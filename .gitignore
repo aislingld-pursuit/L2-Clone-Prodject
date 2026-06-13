@@ -8,6 +8,9 @@ Thumbs.db
 
 # Local working copies (regenerated from template via analyze_and_fill_prd.py)
 _prd_working_copy.docx
+*_dump.txt
+Jimmy and Aisling*.docx
+Wisper Clone PRD*.docx
 
 # Wisper app (Tauri + Rust)
 wisper/node_modules/

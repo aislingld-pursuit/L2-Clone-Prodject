@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Download guide** — README and [GPU_BACKENDS.md](./GPU_BACKENDS.md) “Which installer?” table (NVIDIA → CUDA, AMD/Intel → Vulkan, Mac → Metal, fallback → CPU).
+- **Phase 1 UI polish** — two-step progress (Download → Transcribe) and library labels (“Downloaded from URL” vs “Fully offline”).
+
+### Changed
+
+- **Intel SYCL demoted to advanced-only** — removed from `dev.ps1` auto-detect; use `dev-sycl.ps1` explicitly. Intel iGPU users should use Vulkan builds.
+- PRD `.docx` files stay local (`.gitignore`); README no longer links committed PRD paths.
+
+### Added (Phase 1 — prior)
+
 - **About dialog** — version, platform, release artifact name (`wisper-windows-cuda`, etc.), compiled GPU backend, CPU architecture, fallback status (`get_app_about` / About button in header).
 - **`wisper/scripts/verify-cuda.ps1`** — NVIDIA preflight + optional `gpu-cuda` build for Phase 0.5 CUDA verification (build verified RTX 5080 + CUDA 13.3).
 - **`TranscriptionResult`** and **`GpuFallbackNotice`** — structured GPU → CPU fallback metadata from `wisper-core`.

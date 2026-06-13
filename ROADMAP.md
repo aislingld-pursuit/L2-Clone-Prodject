@@ -84,8 +84,8 @@ gantt
 | GitHub Actions: macOS Metal build | P0 | 1 | Done |
 | GitHub Actions: Linux Vulkan build | P0 | 1 | Done |
 | GitHub Actions: Windows Vulkan build | P0 | 1–2 | Done |
-| Download page / README: which artifact for which GPU | P1 | 0.5 | Partial (GPU_BACKENDS.md) |
-| Deprecate or hide `gpu-sycl` from primary matrix (keep for advanced) | P2 | 0.5 | Todo |
+| Download page / README: which artifact for which GPU | P1 | 0.5 | Done |
+| Deprecate or hide `gpu-sycl` from primary matrix (keep for advanced) | P2 | 0.5 | Done — removed from auto-detect; `dev-sycl.ps1` only |
 
 **Exit criteria:**
 - [x] CI green: CPU smoke (Linux) + macOS Metal + Windows Vulkan + Linux Vulkan (+ ARM64)
@@ -338,13 +338,15 @@ After Phase 0, these can run in parallel with coordination:
 
 ## Next action
 
-**Current:** **Phase 1** — core MVP + YouTube.
+**Current:** **Phase 1** — finish remaining MVP items, then **Phase 2** (library search + export).
 
-Recommended order:
+Phase 1 shipped: mic recording, file picker + drag-drop, YouTube URL import (yt-dlp), language select, two-step download/transcribe progress, library source labels.
 
-1. **Mic recording** (`cpal`) — start/stop, save WAV, transcribe → library (`RecordingSource::Mic` exists in schema)
-2. **YouTube URL import** — `wisper-core/fetch` + yt-dlp, home-screen URL field, download → transcribe progress
-3. **Language select** + auto-detect
-4. **Drag-and-drop** import (on top of existing file picker)
+Still open in Phase 1:
+
+1. **Video import polish** — MP4/MOV already accepted; verify extract-audio path end-to-end
+2. **Channel metadata** in SQLite (optional)
+3. **Transcription queue** for multiple pending jobs
+4. **Exit QA** — 2-min mic, 30-min MP3, YouTube URL, edit-after-restart, firewall during transcribe only
 
 Daily driver on Windows NVIDIA: `.\dev-cuda.ps1` with `ggml-large-v3-turbo.bin` in the models folder.

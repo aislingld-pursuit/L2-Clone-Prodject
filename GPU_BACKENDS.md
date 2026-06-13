@@ -14,7 +14,24 @@ Each **release binary** links **exactly one** GPU backend (or CPU-only). Users t
 | `wisper-linux-cuda` | Linux | CUDA | NVIDIA |
 | `wisper-*-cpu` | Any | — | Fallback / CI smoke |
 
-**Intel GPU on Windows/Linux:** use the **Vulkan** build. Intel oneAPI SYCL (`gpu-sycl`) remains in the codebase for advanced builds but is **not** a primary shipping target.
+**Intel GPU on Windows/Linux:** use the **Vulkan** build. Intel oneAPI SYCL (`gpu-sycl`) remains in the codebase for **advanced/experimental** local builds only (`dev-sycl.ps1`) — it is **not** auto-selected and **not** a primary shipping target.
+
+---
+
+## Which installer should I download?
+
+Use the **About** dialog in the app (header → About) to confirm what you installed. Match your GPU:
+
+| If you have… | Get this artifact | Dev launcher |
+|--------------|-------------------|--------------|
+| NVIDIA GeForce / RTX | `wisper-windows-cuda` or `wisper-linux-cuda` | `dev-cuda.ps1` / `dev-linux.sh --gpu-backend cuda` |
+| AMD GPU, Intel iGPU, or mixed laptop | `wisper-windows-vulkan` or `wisper-linux-vulkan` | `dev.ps1 -GpuBackend vulkan` |
+| Mac (Apple Silicon or Intel) | `wisper-macos-universal` | `dev-macos.sh` |
+| No discrete GPU / troubleshooting | `wisper-*-cpu` | `dev.ps1 -GpuBackend cpu` |
+
+**Not sure?** On Windows with an NVIDIA card, CUDA is usually fastest. On Intel-only graphics, choose **Vulkan**. Every GPU build still includes **CPU fallback** if inference fails.
+
+Release packages will appear under [GitHub Releases](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases) when Phase 4 ships; until then, build locally with the scripts below.
 
 **Apple Core ML** (encoder acceleration, separate from Metal ggml) is planned immediately after this GPU foundation phase — see [ROADMAP.md](./ROADMAP.md) Phase 0.6.
 
@@ -29,7 +46,7 @@ Defined in `wisper/wisper-core/Cargo.toml` and forwarded from `wisper/src-tauri/
 | *(macOS default)* | `metal` | Automatic on `target_os = "macos"` |
 | `gpu-vulkan` | `vulkan` | Windows / Linux — AMD, Intel, NVIDIA |
 | `gpu-cuda` | `cuda` | Windows / Linux — NVIDIA |
-| `gpu-sycl` | `intel-sycl` | Optional; not primary for Intel |
+| `gpu-sycl` | `intel-sycl` | **Advanced only** — not in release matrix; use `dev-sycl.ps1` |
 
 **Rule:** enable **at most one** of `gpu-vulkan`, `gpu-cuda`, `gpu-sycl` per build. Enabling more than one fails at compile time.
 
@@ -73,6 +90,7 @@ npm install
 .\dev.ps1 -GpuBackend vulkan   # AMD / Intel iGPU (recommended on mixed hardware)
 .\dev-cuda.ps1                 # NVIDIA CUDA
 .\dev.ps1 -GpuBackend cpu      # CPU-only
+# Advanced: .\dev-sycl.ps1     # Intel oneAPI SYCL (experimental; not auto-selected)
 
 # Build only (no Tauri dev server)
 .\build-gpu.ps1 -Backend vulkan
