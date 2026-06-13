@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
 interface TranscriptSegment {
@@ -84,6 +84,7 @@ interface TranscriptionProgress {
 interface TranscriptionErrorPayload {
   message: string;
   cancelled: boolean;
+  phase: "download" | "transcribe";
 }
 
 interface RecordingStatus {
@@ -105,6 +106,13 @@ interface DownloadProgress {
 interface YtDlpStatus {
   available: boolean;
   path: string | null;
+  hint: string;
+}
+
+interface ModelStatus {
+  path: string;
+  models_dir: string;
+  ready: boolean;
   hint: string;
 }
 
@@ -182,14 +190,22 @@ function librarySourceLabel(item: RecordingSummary): string {
   return "Fully offline";
 }
 
+function safeExportFilename(title: string): string {
+  const cleaned = title.replace(/[<>:"/\\|?*]/g, "_").trim().slice(0, 80);
+  return cleaned || "transcript";
+}
+
 function App() {
   const [modelPath, setModelPath] = useState("");
+  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [computeInfo, setComputeInfo] = useState<ComputeInfo | null>(null);
   const [computeBackend, setComputeBackend] = useState<ComputeChoice>("cpu");
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [library, setLibrary] = useState<RecordingSummary[]>([]);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [activeTitle, setActiveTitle] = useState<string | null>(null);
   const [status, setStatus] = useState("Pick an audio file to transcribe locally.");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,10 +238,18 @@ function App() {
     }
   }, []);
 
+  const refreshModelStatus = useCallback(async () => {
+    try {
+      const status = await invoke<ModelStatus>("get_model_status");
+      setModelStatus(status);
+      setModelPath(status.path);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
   useEffect(() => {
-    invoke<string>("get_model_path")
-      .then(setModelPath)
-      .catch((e) => setError(String(e)));
+    refreshModelStatus().catch((e) => setError(String(e)));
 
     invoke<ComputeInfo>("get_compute_info")
       .then((info) => {
@@ -242,7 +266,7 @@ function App() {
       .catch((e) => setError(String(e)));
 
     refreshLibrary();
-  }, [refreshLibrary]);
+  }, [refreshLibrary, refreshModelStatus]);
 
   useEffect(() => {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -254,6 +278,29 @@ function App() {
       .then(setYtDlpStatus)
       .catch((e) => setError(String(e)));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      try {
+        const items = await invoke<RecordingSummary[]>("search_library", {
+          query: libraryQuery,
+        });
+        if (!cancelled) {
+          setLibrary(items);
+        }
+      } catch {
+        if (!cancelled) {
+          refreshLibrary();
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [libraryQuery, refreshLibrary]);
 
   useEffect(() => {
     const unlistenPromise = getCurrentWindow().onDragDropEvent((event) => {
@@ -344,6 +391,7 @@ function App() {
           );
         }
         await refreshLibrary();
+        setLibraryQuery("");
       },
     );
 
@@ -355,12 +403,13 @@ function App() {
         setDownloadProgress(null);
         setUrlJobActive(false);
         setFallbackNotice(null);
+        const isDownload = event.payload.phase === "download";
         if (event.payload.cancelled) {
-          setStatus("Transcription cancelled.");
+          setStatus(isDownload ? "Download cancelled." : "Transcription cancelled.");
           setError(null);
         } else {
           setError(event.payload.message);
-          setStatus("Transcription failed.");
+          setStatus(isDownload ? "Download failed." : "Transcription failed.");
         }
       },
     );
@@ -451,6 +500,7 @@ function App() {
         recordingId: id,
       });
       setRecordingId(id);
+      setActiveTitle(title);
       setSegments(loaded);
       setAudioPath(null);
       setStatus(`Loaded ${loaded.length} segment${loaded.length === 1 ? "" : "s"} from library.`);
@@ -466,6 +516,12 @@ function App() {
     path: string,
     options?: { source?: "mic" | "import" | "url"; title?: string; sourceUrl?: string },
   ) {
+    if (!modelStatus?.ready) {
+      setError(modelStatus?.hint ?? "Whisper model not found. Download a GGML .bin file first.");
+      setStatus("Transcription blocked until a model is installed.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setProgress(null);
@@ -601,7 +657,66 @@ function App() {
     }
   }
 
+  async function copyTranscript() {
+    if (!recordingId) return;
+    setError(null);
+    try {
+      const text = await invoke<string>("export_transcript_txt", { recordingId });
+      await navigator.clipboard.writeText(text);
+      setStatus("Transcript copied to clipboard.");
+    } catch (e) {
+      setError(String(e));
+      setStatus("Could not copy transcript.");
+    }
+  }
+
+  async function exportTranscriptTxt() {
+    if (!recordingId) return;
+    setError(null);
+    try {
+      const text = await invoke<string>("export_transcript_txt", { recordingId });
+      const path = await save({
+        defaultPath: `${safeExportFilename(activeTitle ?? "transcript")}.txt`,
+        filters: [{ name: "Text", extensions: ["txt"] }],
+      });
+      if (path) {
+        await invoke("write_text_file", { path, contents: text });
+        setStatus(`Exported ${path.split(/[/\\]/).pop()}.`);
+      }
+    } catch (e) {
+      setError(String(e));
+      setStatus("Could not export transcript.");
+    }
+  }
+
+  async function deleteActiveRecording() {
+    if (!recordingId) return;
+    const label = activeTitle ?? "this recording";
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) {
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await invoke("delete_recording", { recordingId });
+      setRecordingId(null);
+      setActiveTitle(null);
+      setSegments([]);
+      setLibraryQuery("");
+      await refreshLibrary();
+      setStatus("Recording deleted.");
+    } catch (e) {
+      setError(String(e));
+      setStatus("Could not delete recording.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const gpuLabel = computeInfo?.gpu_backend ?? "GPU";
+  const setupIncomplete =
+    modelStatus !== null &&
+    (!modelStatus.ready || (ytDlpStatus !== null && !ytDlpStatus.available));
   const downloading = busy && downloadProgress !== null;
   const transcribing = busy && !downloading;
   const showUrlSteps = urlJobActive && busy;
@@ -636,6 +751,39 @@ function App() {
           About
         </button>
       </header>
+
+      {setupIncomplete && (
+        <section className="panel onboarding" aria-live="polite">
+          <h2>First-run setup</h2>
+          <ul className="onboarding-list">
+            {modelStatus && !modelStatus.ready && (
+              <li>
+                <strong>Whisper model</strong> — {modelStatus.hint}
+                <p className="hint">
+                  Models folder: <code>{modelStatus.models_dir}</code>
+                </p>
+                <p className="hint">
+                  From the repo:{" "}
+                  <code>wisper/scripts/download-model.ps1</code> (or download from{" "}
+                  <a
+                    href="https://huggingface.co/ggerganov/whisper.cpp"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Hugging Face
+                  </a>
+                  ).
+                </p>
+              </li>
+            )}
+            {ytDlpStatus && !ytDlpStatus.available && (
+              <li>
+                <strong>URL import (optional)</strong> — {ytDlpStatus.hint}
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
 
       {showAbout && (
         <div
@@ -938,9 +1086,21 @@ function App() {
         {error && <p className="error">{error}</p>}
       </section>
 
-      {library.length > 0 && (
+      {(library.length > 0 || libraryQuery.trim()) && (
         <section className="panel library">
           <h2 className="panel-title">Library</h2>
+          <input
+            type="search"
+            className="library-search"
+            placeholder="Search transcripts…"
+            value={libraryQuery}
+            onChange={(e) => setLibraryQuery(e.target.value)}
+            disabled={busy}
+            aria-label="Search library"
+          />
+          {library.length === 0 ? (
+            <p className="hint">No recordings match your search.</p>
+          ) : (
           <ul className="library-list">
             {library.map((item) => (
               <li key={item.id}>
@@ -965,30 +1125,49 @@ function App() {
               </li>
             ))}
           </ul>
+          )}
         </section>
       )}
 
       <section className="panel model-panel">
         <h2>Whisper model</h2>
+        {modelStatus?.ready ? (
+          <p className="model-ready">Ready</p>
+        ) : (
+          <p className="model-missing">Not installed</p>
+        )}
         <p className="model-path">{modelPath || "Loading…"}</p>
-        <p className="hint">
-          Place any <code>ggml-*.bin</code> model in the models folder (e.g.{" "}
-          <code>ggml-large-v3-turbo.bin</code> or your renamed file if it is the
-          only <code>.bin</code> there). Download from{" "}
-          <a
-            href="https://huggingface.co/ggerganov/whisper.cpp"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Hugging Face
-          </a>
-          .
-        </p>
+        {!modelStatus?.ready && (
+          <p className="hint">
+            Place any <code>ggml-*.bin</code> model in the models folder (e.g.{" "}
+            <code>ggml-large-v3-turbo.bin</code>).
+          </p>
+        )}
       </section>
 
       {segments.length > 0 && (
         <section className="panel transcript">
-          <h2>Transcript{recordingId ? " (editable)" : ""}</h2>
+          <div className="transcript-header">
+            <h2>Transcript{recordingId ? " (editable)" : ""}</h2>
+            {recordingId && (
+              <div className="actions transcript-actions">
+                <button type="button" onClick={copyTranscript} disabled={busy}>
+                  Copy
+                </button>
+                <button type="button" onClick={exportTranscriptTxt} disabled={busy}>
+                  Export TXT
+                </button>
+                <button
+                  type="button"
+                  className="cancel"
+                  onClick={deleteActiveRecording}
+                  disabled={busy}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
           <ul>
             {segments.map((seg, i) => (
               <li key={`${seg.start_ms}-${i}`}>

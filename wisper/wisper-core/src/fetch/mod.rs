@@ -93,6 +93,33 @@ pub fn yt_dlp_status(extra_candidates: &[PathBuf]) -> YtDlpStatus {
     }
 }
 
+struct PartialDownloadGuard<'a> {
+    output_dir: &'a Path,
+    file_id: String,
+    committed: bool,
+}
+
+impl Drop for PartialDownloadGuard<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            cleanup_partial_download(self.output_dir, &self.file_id);
+        }
+    }
+}
+
+fn cleanup_partial_download(output_dir: &Path, file_id: &str) {
+    let Ok(entries) = std::fs::read_dir(output_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with(file_id) {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
 fn parse_download_percent(line: &str) -> Option<i32> {
     let marker = "[download]";
     let rest = line.strip_prefix(marker)?.trim();
@@ -115,6 +142,11 @@ pub fn download_url(
 
     let source_url = normalize_url(url)?;
     let file_id = Uuid::new_v4().to_string();
+    let mut download_guard = PartialDownloadGuard {
+        output_dir,
+        file_id: file_id.clone(),
+        committed: false,
+    };
     let output_template = output_dir.join(format!("{file_id}.%(ext)s"));
     let output_arg = output_template.to_string_lossy().into_owned();
 
@@ -235,9 +267,50 @@ pub fn download_url(
         status: "Download complete".into(),
     });
 
+    download_guard.committed = true;
+
     Ok(UrlDownloadResult {
         audio_path,
         title,
         source_url,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+
+    #[test]
+    fn cleanup_partial_download_removes_matching_files() {
+        let dir = std::env::temp_dir().join(format!(
+            "wisper-fetch-cleanup-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let file_id = "abc-123-def";
+
+        let partial = dir.join(format!("{file_id}.m4a.part"));
+        let complete = dir.join(format!("{file_id}.m4a"));
+        let other = dir.join("other-recording.m4a");
+
+        File::create(&partial)
+            .and_then(|mut f| f.write_all(b"x"))
+            .expect("partial file");
+        File::create(&complete)
+            .and_then(|mut f| f.write_all(b"x"))
+            .expect("complete file");
+        File::create(&other)
+            .and_then(|mut f| f.write_all(b"x"))
+            .expect("other file");
+
+        cleanup_partial_download(&dir, file_id);
+
+        assert!(!partial.exists());
+        assert!(!complete.exists());
+        assert!(other.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

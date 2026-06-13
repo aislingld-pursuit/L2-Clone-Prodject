@@ -450,6 +450,37 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.model-ready {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #95d5b2;
+}
+
+.model-missing {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f4a261;
+}
+
+.onboarding {
+  border-color: #5c4d1f;
+  background: #2a2418;
+}
+
+.onboarding-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.onboarding-list li {
+  color: #e8eaed;
+}
+
 .model-panel h2,
 .transcript h2 {
   margin: 0 0 0.75rem;
@@ -502,6 +533,40 @@ button:disabled {
 
 .text {
   color: #e8eaed;
+}
+
+.transcript-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.transcript-header h2 {
+  margin: 0;
+}
+
+.transcript-actions {
+  margin: 0;
+}
+
+.library-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #3c4454;
+  border-radius: 8px;
+  background: #222733;
+  color: inherit;
+  font-size: 0.95rem;
+}
+
+.library-search:focus {
+  outline: 2px solid #40916c;
+  outline-offset: 1px;
 }
 
 .library-list {

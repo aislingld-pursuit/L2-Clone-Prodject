@@ -10,10 +10,11 @@ use mic::{MicRecorder, MicRecordingStatus};
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
 use wisper_core::{
-    app_about, compute_info, download_url, resolve_model_path, resolve_yt_dlp, transcribe_with_engine,
-    yt_dlp_status, AppAbout, ComputeBackend, ComputeInfo, DownloadProgress, GpuFallbackNotice,
-    RecordingSource, RecordingSummary, Storage, TranscribeOptions, TranscriptSegment,
-    TranscriptionProgress, WhisperEngine, WisperError, YtDlpStatus,
+    app_about, compute_info, download_url, format_transcript_txt, model_status, resolve_model_path,
+    resolve_yt_dlp, transcribe_with_engine, yt_dlp_status, AppAbout, ComputeBackend, ComputeInfo,
+    DownloadProgress, ModelStatus,
+    GpuFallbackNotice, RecordingSource, RecordingSummary, Storage, TranscribeOptions,
+    TranscriptSegment, TranscriptionProgress, WhisperEngine, WisperError, YtDlpStatus,
 };
 
 struct AppState {
@@ -184,6 +185,32 @@ struct TranscribeResult {
 struct TranscriptionErrorPayload {
     message: String,
     cancelled: bool,
+    /// `"download"` while fetching URL audio; `"transcribe"` during Whisper decode.
+    phase: String,
+}
+
+fn url_job_error_phase(err: &WisperError, download_finished: bool) -> &'static str {
+    match err {
+        WisperError::Fetch(_) => "download",
+        WisperError::Cancelled if !download_finished => "download",
+        _ => "transcribe",
+    }
+}
+
+fn emit_transcription_error(
+    app: &tauri::AppHandle,
+    message: impl Into<String>,
+    cancelled: bool,
+    phase: &str,
+) {
+    let _ = app.emit(
+        "transcription-error",
+        TranscriptionErrorPayload {
+            message: message.into(),
+            cancelled,
+            phase: phase.into(),
+        },
+    );
 }
 
 #[derive(Debug, serde::Serialize, Clone)]
@@ -202,6 +229,11 @@ struct StopRecordingResult {
 #[tauri::command]
 fn get_model_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(model_path(&app).to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn get_model_status(app: tauri::AppHandle) -> ModelStatus {
+    model_status(&models_dir(&app))
 }
 
 #[tauri::command]
@@ -250,6 +282,50 @@ fn update_segment(
         .map_err(|e| e.to_string())?
         .update_segment_text(&recording_id, index, &text)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn search_library(
+    state: tauri::State<'_, AppState>,
+    query: String,
+) -> Result<Vec<RecordingSummary>, String> {
+    state
+        .storage
+        .lock()
+        .map_err(|e| e.to_string())?
+        .search_recordings(&query)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_recording(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    recording_id: String,
+) -> Result<(), String> {
+    state
+        .storage
+        .lock()
+        .map_err(|e| e.to_string())?
+        .delete_recording(&recording_id, Some(&audio_dir(&app)))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_transcript_txt(
+    state: tauri::State<'_, AppState>,
+    recording_id: String,
+) -> Result<String, String> {
+    let storage = state.storage.lock().map_err(|e| e.to_string())?;
+    let segments = storage
+        .get_segments(&recording_id)
+        .map_err(|e| e.to_string())?;
+    Ok(format_transcript_txt(&segments))
+}
+
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -403,22 +479,15 @@ fn start_transcription(
                 let _ = app_handle.emit("transcription-complete", &payload);
             }
             Err(WisperError::Cancelled) => {
-                let _ = app_handle.emit(
-                    "transcription-error",
-                    TranscriptionErrorPayload {
-                        message: "Transcription cancelled.".into(),
-                        cancelled: true,
-                    },
+                emit_transcription_error(
+                    &app_handle,
+                    "Transcription cancelled.",
+                    true,
+                    "transcribe",
                 );
             }
             Err(err) => {
-                let _ = app_handle.emit(
-                    "transcription-error",
-                    TranscriptionErrorPayload {
-                        message: err.to_string(),
-                        cancelled: false,
-                    },
-                );
+                emit_transcription_error(&app_handle, err.to_string(), false, "transcribe");
             }
         }
     });
@@ -463,6 +532,7 @@ fn start_url_import(
     let running = Arc::clone(&state.running);
 
     thread::spawn(move || {
+        let mut download_finished = false;
         let result: Result<TranscribeResult, WisperError> = (|| {
             let download = download_url(
                 &yt_dlp,
@@ -473,6 +543,7 @@ fn start_url_import(
                     let _ = app_handle.emit("download-progress", &progress);
                 },
             )?;
+            download_finished = true;
 
             let _ = app_handle.emit(
                 "download-complete",
@@ -503,22 +574,17 @@ fn start_url_import(
                 let _ = app_handle.emit("transcription-complete", &payload);
             }
             Err(WisperError::Cancelled) => {
-                let _ = app_handle.emit(
-                    "transcription-error",
-                    TranscriptionErrorPayload {
-                        message: "Import cancelled.".into(),
-                        cancelled: true,
-                    },
-                );
+                let phase = url_job_error_phase(&WisperError::Cancelled, download_finished);
+                let message = if download_finished {
+                    "Transcription cancelled."
+                } else {
+                    "Import cancelled."
+                };
+                emit_transcription_error(&app_handle, message, true, phase);
             }
             Err(err) => {
-                let _ = app_handle.emit(
-                    "transcription-error",
-                    TranscriptionErrorPayload {
-                        message: err.to_string(),
-                        cancelled: false,
-                    },
-                );
+                let phase = url_job_error_phase(&err, download_finished);
+                emit_transcription_error(&app_handle, err.to_string(), false, phase);
             }
         }
     });
@@ -547,11 +613,16 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_model_path,
+            get_model_status,
             get_compute_info,
             get_app_about,
             list_recordings,
             get_transcript,
             update_segment,
+            search_library,
+            delete_recording,
+            export_transcript_txt,
+            write_text_file,
             start_recording,
             stop_recording,
             get_recording_status,

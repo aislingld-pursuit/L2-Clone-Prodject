@@ -264,4 +264,58 @@ mod tests {
         assert!(pcm.len() > 160_000, "expected ~11s at 16kHz, got {}", pcm.len());
         assert!(peak > 0.05, "PCM peak too quiet ({peak}); check normalization");
     }
+
+    #[test]
+    fn mp4_decodes_to_pcm_via_symphonia() {
+        use std::process::Command;
+        use uuid::Uuid;
+
+        let ffmpeg_ok = Command::new("ffmpeg")
+            .args(["-version"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !ffmpeg_ok {
+            eprintln!("skip mp4 decode test: ffmpeg not in PATH");
+            return;
+        }
+
+        let dir = std::env::temp_dir().join(format!("wisper-mp4-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let mp4 = dir.join("tone.mp4");
+
+        let status = Command::new("ffmpeg")
+            .args([
+                "-nostdin",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=2",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "64k",
+                mp4.to_str().expect("utf-8 path"),
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("ffmpeg spawn");
+
+        assert!(status.success(), "ffmpeg failed to create test mp4");
+
+        let pcm = load_audio_pcm(&mp4).expect("mp4 should decode via symphonia isomp4");
+        assert!(
+            pcm.len() > 16_000,
+            "expected ~2s at 16kHz, got {} samples",
+            pcm.len()
+        );
+        let peak = pcm.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+        assert!(peak > 0.01, "PCM peak too quiet ({peak})");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

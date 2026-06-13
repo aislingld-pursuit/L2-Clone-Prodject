@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, StreamConfig};
@@ -18,6 +19,7 @@ struct SharedCapture {
     sample_rate: u32,
     device_name: String,
     stop: Arc<AtomicBool>,
+    stream_error: Arc<Mutex<Option<String>>>,
     thread: JoinHandle<()>,
 }
 
@@ -29,6 +31,9 @@ pub struct MicRecordingStatus {
 }
 
 pub struct MicRecorder(SharedCapture);
+
+const STARTUP_POLL_MS: u64 = 25;
+const STARTUP_TIMEOUT_MS: u64 = 500;
 
 impl MicRecorder {
     pub fn start() -> Result<Self, String> {
@@ -53,17 +58,29 @@ impl MicRecorder {
         let samples: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
         let peak: Arc<Mutex<f32>> = Arc::new(Mutex::new(0.0));
         let stop = Arc::new(AtomicBool::new(false));
+        let stream_ready = Arc::new(AtomicBool::new(false));
+        let stream_error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 
         let samples_cb = Arc::clone(&samples);
         let peak_cb = Arc::clone(&peak);
         let stop_cb = Arc::clone(&stop);
+        let stream_ready_cb = Arc::clone(&stream_ready);
+        let stream_error_cb = Arc::clone(&stream_error);
 
         let thread = thread::spawn(move || {
             let stream = match sample_format {
                 SampleFormat::F32 => device.build_input_stream(
                     &stream_config,
                     move |data: &[f32], _| append_input(data, channels, &samples_cb, &peak_cb),
-                    |err| eprintln!("microphone stream error: {err}"),
+                    {
+                        let stream_error_cb = Arc::clone(&stream_error_cb);
+                        move |err| {
+                            record_stream_error(
+                                &stream_error_cb,
+                                format!("microphone stream error: {err}"),
+                            );
+                        }
+                    },
                     None,
                 ),
                 SampleFormat::I16 => device.build_input_stream(
@@ -75,7 +92,15 @@ impl MicRecorder {
                             .collect();
                         append_input(&floats, channels, &samples_cb, &peak_cb);
                     },
-                    |err| eprintln!("microphone stream error: {err}"),
+                    {
+                        let stream_error_cb = Arc::clone(&stream_error_cb);
+                        move |err| {
+                            record_stream_error(
+                                &stream_error_cb,
+                                format!("microphone stream error: {err}"),
+                            );
+                        }
+                    },
                     None,
                 ),
                 SampleFormat::U16 => device.build_input_stream(
@@ -89,11 +114,22 @@ impl MicRecorder {
                             .collect();
                         append_input(&floats, channels, &samples_cb, &peak_cb);
                     },
-                    |err| eprintln!("microphone stream error: {err}"),
+                    {
+                        let stream_error_cb = Arc::clone(&stream_error_cb);
+                        move |err| {
+                            record_stream_error(
+                                &stream_error_cb,
+                                format!("microphone stream error: {err}"),
+                            );
+                        }
+                    },
                     None,
                 ),
                 other => {
-                    eprintln!("unsupported microphone sample format: {other:?}");
+                    record_stream_error(
+                        &stream_error_cb,
+                        format!("unsupported microphone sample format: {other:?}"),
+                    );
                     return;
                 }
             };
@@ -101,31 +137,67 @@ impl MicRecorder {
             let stream = match stream {
                 Ok(s) => s,
                 Err(err) => {
-                    eprintln!("failed to open microphone stream: {err}");
+                    record_stream_error(
+                        &stream_error_cb,
+                        format!("failed to open microphone stream: {err}"),
+                    );
                     return;
                 }
             };
 
             if let Err(err) = stream.play() {
-                eprintln!("failed to start microphone stream: {err}");
+                record_stream_error(
+                    &stream_error_cb,
+                    format!("failed to start microphone stream: {err}"),
+                );
                 return;
             }
 
+            stream_ready_cb.store(true, Ordering::SeqCst);
+
             while !stop_cb.load(Ordering::SeqCst) {
-                thread::sleep(std::time::Duration::from_millis(50));
+                thread::sleep(Duration::from_millis(50));
             }
 
             drop(stream);
         });
 
-        Ok(Self(SharedCapture {
-            samples,
-            peak,
-            sample_rate,
-            device_name,
-            stop,
-            thread,
-        }))
+        let polls = STARTUP_TIMEOUT_MS / STARTUP_POLL_MS;
+        for _ in 0..polls {
+            if stream_ready.load(Ordering::SeqCst) {
+                return Ok(Self(SharedCapture {
+                    samples,
+                    peak,
+                    sample_rate,
+                    device_name,
+                    stop,
+                    stream_error,
+                    thread,
+                }));
+            }
+            if let Ok(guard) = stream_error.lock() {
+                if let Some(message) = guard.clone() {
+                    stop.store(true, Ordering::SeqCst);
+                    thread.join().ok();
+                    return Err(message);
+                }
+            }
+            thread::sleep(Duration::from_millis(STARTUP_POLL_MS));
+        }
+
+        stop.store(true, Ordering::SeqCst);
+        thread.join().ok();
+
+        if let Ok(guard) = stream_error.lock() {
+            if let Some(message) = guard.clone() {
+                return Err(message);
+            }
+        }
+
+        Err(
+            "failed to start microphone — check permissions and that an input device is available"
+                .into(),
+        )
     }
 
     pub fn status(&self) -> MicRecordingStatus {
@@ -151,6 +223,12 @@ impl MicRecorder {
             .join()
             .map_err(|_| "recording thread panicked".to_string())?;
 
+        if let Ok(guard) = self.0.stream_error.lock() {
+            if let Some(message) = guard.clone() {
+                return Err(message);
+            }
+        }
+
         let raw = self
             .0
             .samples
@@ -171,6 +249,14 @@ impl MicRecorder {
             path: output_path.to_path_buf(),
             duration_ms,
         })
+    }
+}
+
+fn record_stream_error(stream_error: &Arc<Mutex<Option<String>>>, message: impl Into<String>) {
+    if let Ok(mut slot) = stream_error.lock() {
+        if slot.is_none() {
+            *slot = Some(message.into());
+        }
     }
 }
 

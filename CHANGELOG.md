@@ -9,13 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Phase 1 import flows** — microphone recording (cpal), file picker + drag-and-drop (audio/video), YouTube/URL import via yt-dlp, language select, two-step download → transcribe progress, library source labels (“Downloaded from URL” vs “Fully offline”).
+- **`wisper/scripts/download-model.ps1`** — download GGML models into app data (tiny / base / large-turbo).
 - **Download guide** — README and [GPU_BACKENDS.md](./GPU_BACKENDS.md) “Which installer?” table (NVIDIA → CUDA, AMD/Intel → Vulkan, Mac → Metal, fallback → CPU).
-- **Phase 1 UI polish** — two-step progress (Download → Transcribe) and library labels (“Downloaded from URL” vs “Fully offline”).
+- **Phase 1 UI polish** — two-step progress (Download → Transcribe) and library labels.
 
 ### Changed
 
 - **Intel SYCL demoted to advanced-only** — removed from `dev.ps1` auto-detect; use `dev-sycl.ps1` explicitly. Intel iGPU users should use Vulkan builds.
 - PRD `.docx` files stay local (`.gitignore`); README no longer links committed PRD paths.
+
+### Fixed
+
+- **CodeRabbit review (Phase 1)** — platform-aware yt-dlp binary names in Tauri; CUDA registry version sort in `dev.ps1`; drag-drop listener cleanup on unmount; transcript duration from max segment `end_ms`; SYCL release artifact labels in About.
+- **Tier 1 ship blockers** — mic cpal stream errors surfaced at start/stop instead of silent empty recordings; URL import errors tagged `download` vs `transcribe` in UI status; partial yt-dlp downloads cleaned up on cancel/failure.
+- **Phase 2 library** — FTS5 transcript search, delete recording (DB + audio file under app data), export transcript as TXT, copy to clipboard.
+- **First-run onboarding** — setup banner when Whisper model or yt-dlp is missing; `get_model_status` blocks transcription until a model is installed.
+- **`wisper/scripts/build-release.ps1`** — local Windows release bundle (CUDA / Vulkan / CPU).
+- **GitHub Release workflow** — [`.github/workflows/release.yml`](./.github/workflows/release.yml) builds platform installers on `v*` tags.
+- **`download-model.ps1`** — exit non-zero when `Invoke-WebRequest` fails.
+- **Linux CI** — `libasound2-dev` for mic/cpal builds (CPU smoke, Linux Vulkan, ARM64 CPU).
+
+### Deploy readiness (in progress)
+
+Target: **beta deployable** (installable build for trusted testers), then **Phase 4** public release matrix.
+
+| Track | Status |
+|-------|--------|
+| Phase 1 exit QA (manual) | Automated preflight passed — run manual checklist in app when convenient |
+| Tier 1 bug fixes (mic, URL errors, orphan downloads) | Done |
+| Video import verify (MP4/MOV) | Automated symphonia test + manual drag-drop |
+| Phase 2 minimum (export, search, delete) | Done — TXT export, clipboard, FTS search, delete |
+| Release pipeline (Tauri bundle + GitHub Releases) | Done — `build-release.ps1` + release workflow on tag |
+| First-run onboarding (model + yt-dlp) | Done — setup banner + model guard |
+| Tag `v0.2.0-beta.1` | Ready — bump to 0.2.0-beta.1; push tag to trigger release CI |
+
+See [ROADMAP.md](./ROADMAP.md) — **Next action** and Phase 4 exit criteria for full public deploy.
 
 ### Added (Phase 1 — prior)
 

@@ -41,6 +41,27 @@ CREATE TABLE IF NOT EXISTS tags (
 );
 "#;
 
+const FTS_TRIGGERS: &str = r#"
+CREATE TRIGGER IF NOT EXISTS transcript_segments_ai AFTER INSERT ON transcript_segments BEGIN
+  INSERT INTO transcripts_fts(rowid, recording_id, text)
+  VALUES (new.id, new.recording_id, new.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS transcript_segments_ad AFTER DELETE ON transcript_segments BEGIN
+  INSERT INTO transcripts_fts(transcripts_fts, rowid, recording_id, text)
+  VALUES ('delete', old.id, old.recording_id, old.text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS transcript_segments_au AFTER UPDATE ON transcript_segments BEGIN
+  INSERT INTO transcripts_fts(transcripts_fts, rowid, recording_id, text)
+  VALUES ('delete', old.id, old.recording_id, old.text);
+  INSERT INTO transcripts_fts(rowid, recording_id, text)
+  VALUES (new.id, new.recording_id, new.text);
+END;
+"#;
+
+const SCHEMA_VERSION: i32 = 2;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RecordingSummary {
     pub id: String,
@@ -91,7 +112,30 @@ impl Storage {
             .map_err(|e| WisperError::Storage(e.to_string()))?;
         conn.execute_batch(SCHEMA)
             .map_err(|e| WisperError::Storage(e.to_string()))?;
-        Ok(Self { conn })
+        let storage = Self { conn };
+        storage.migrate()?;
+        Ok(storage)
+    }
+
+    fn migrate(&self) -> Result<(), WisperError> {
+        let version: i32 = self
+            .conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap_or(0);
+
+        if version < SCHEMA_VERSION {
+            self.conn
+                .execute_batch(FTS_TRIGGERS)
+                .map_err(|e| WisperError::Storage(e.to_string()))?;
+            self.conn
+                .execute("INSERT INTO transcripts_fts(transcripts_fts) VALUES('rebuild')", [])
+                .map_err(|e| WisperError::Storage(e.to_string()))?;
+            self.conn
+                .execute(&format!("PRAGMA user_version = {SCHEMA_VERSION}"), [])
+                .map_err(|e| WisperError::Storage(e.to_string()))?;
+        }
+
+        Ok(())
     }
 
     pub fn save_transcript(
@@ -240,5 +284,158 @@ impl Storage {
             .map_err(|e| WisperError::Storage(e.to_string()))?;
 
         Ok(())
+    }
+
+    pub fn search_recordings(&self, query: &str) -> Result<Vec<RecordingSummary>, WisperError> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return self.list_recordings();
+        }
+
+        let escaped = trimmed.replace('"', "\"\"");
+        let match_expr = format!("\"{escaped}\"*");
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT r.id, r.title, r.created_at, r.duration_ms, r.source, r.source_url
+                 FROM transcripts_fts
+                 JOIN recordings r ON r.id = transcripts_fts.recording_id
+                 WHERE transcripts_fts MATCH ?1
+                 ORDER BY r.created_at DESC",
+            )
+            .map_err(|e| WisperError::Storage(e.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![match_expr], |row| {
+                Ok(RecordingSummary {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    created_at: row.get(2)?,
+                    duration_ms: row.get(3)?,
+                    source: row.get(4)?,
+                    source_url: row.get(5)?,
+                })
+            })
+            .map_err(|e| WisperError::Storage(e.to_string()))?;
+
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| WisperError::Storage(e.to_string()))
+    }
+
+    pub fn delete_recording(
+        &self,
+        recording_id: &str,
+        audio_root: Option<&Path>,
+    ) -> Result<(), WisperError> {
+        let audio_path: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT audio_path FROM recordings WHERE id = ?1",
+                params![recording_id],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let changed = self
+            .conn
+            .execute("DELETE FROM recordings WHERE id = ?1", params![recording_id])
+            .map_err(|e| WisperError::Storage(e.to_string()))?;
+
+        if changed == 0 {
+            return Err(WisperError::Storage(format!(
+                "recording not found: {recording_id}"
+            )));
+        }
+
+        if let (Some(root), Some(path_str)) = (audio_root, audio_path) {
+            let path = std::path::PathBuf::from(path_str);
+            if path.starts_with(root) {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transcribe::TranscriptSegment;
+    use uuid::Uuid;
+
+    fn temp_storage() -> (Storage, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("wisper-storage-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let db = dir.join("test.db");
+        let storage = Storage::open(&db).expect("open storage");
+        (storage, dir)
+    }
+
+    #[test]
+    fn search_finds_matching_segment_text() {
+        let (storage, dir) = temp_storage();
+        let id = storage
+            .save_transcript(
+                RecordingSource::Mic,
+                "Meeting notes",
+                std::path::Path::new("audio/test.wav"),
+                None,
+                None,
+                None,
+                &[TranscriptSegment {
+                    start_ms: 0,
+                    end_ms: 1000,
+                    text: "quarterly revenue increased".into(),
+                }],
+            )
+            .expect("save");
+
+        let hits = storage
+            .search_recordings("revenue")
+            .expect("search should succeed");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, id);
+
+        let miss = storage.search_recordings("nonexistent").expect("search");
+        assert!(miss.is_empty());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn delete_recording_removes_row_and_segments() {
+        let (storage, dir) = temp_storage();
+        let audio_dir = dir.join("audio");
+        std::fs::create_dir_all(&audio_dir).expect("audio dir");
+        let audio_file = audio_dir.join("clip.wav");
+        std::fs::write(&audio_file, b"fake").expect("audio file");
+
+        let id = storage
+            .save_transcript(
+                RecordingSource::Import,
+                "Clip",
+                &audio_file,
+                None,
+                None,
+                None,
+                &[TranscriptSegment {
+                    start_ms: 0,
+                    end_ms: 500,
+                    text: "hello".into(),
+                }],
+            )
+            .expect("save");
+
+        storage
+            .delete_recording(&id, Some(&audio_dir))
+            .expect("delete");
+
+        assert!(storage.list_recordings().unwrap().is_empty());
+        assert!(storage.get_segments(&id).unwrap().is_empty());
+        assert!(!audio_file.exists());
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

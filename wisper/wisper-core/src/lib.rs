@@ -2,6 +2,7 @@ pub mod audio;
 pub mod compute;
 pub mod engine;
 pub mod error;
+pub mod export;
 pub mod fetch;
 pub mod model;
 pub mod storage;
@@ -14,7 +15,8 @@ pub use compute::{
 };
 pub use engine::WhisperEngine;
 pub use error::WisperError;
-pub use model::resolve_model_path;
+pub use export::format_transcript_txt;
+pub use model::{model_status, resolve_model_path, ModelStatus};
 pub use audio::save_mic_wav;
 pub use fetch::{download_url, normalize_url, resolve_yt_dlp, yt_dlp_status, DownloadProgress, UrlDownloadResult, YtDlpStatus};
 pub use storage::{RecordingSource, RecordingSummary, Storage};
