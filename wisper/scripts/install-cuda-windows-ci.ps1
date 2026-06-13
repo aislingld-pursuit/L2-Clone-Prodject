@@ -18,9 +18,9 @@ Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
 $packages = @(
     "nvcc_$Short",
     "cudart_$Short",
-    "cudart_dev_$Short",
     "cublas_$Short",
-    "cublas_dev_$Short"
+    "cublas_dev_$Short",
+    "visual_studio_integration_$Short"
 ) -join " "
 
 Write-Host "Installing CUDA sub-packages: $packages"
