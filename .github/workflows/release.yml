@@ -29,8 +29,21 @@ jobs:
           cache-dependency-path: wisper/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.35
+        id: cuda-toolkit
+        with:
+          cuda: "12.6.0"
+          method: network
+          sub-packages: '["nvcc","cudart","cublas"]'
+          use-github-cache: false
+          use-local-cache: false
+      - name: Verify CUDA
         shell: pwsh
-        run: ./scripts/install-cuda-windows-ci.ps1
+        run: |
+          $bin = Join-Path $env:CUDA_PATH "bin"
+          Add-Content -Path $env:GITHUB_PATH -Value $bin
+          $env:PATH = "$bin;$env:PATH"
+          nvcc -V
       - name: Install frontend dependencies
         run: npm ci
       - name: Build frontend
