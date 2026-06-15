@@ -54,7 +54,8 @@ Each installer links **one** GPU backend (or CPU-only). Pick by hardware:
 |---------------|------------------|-------------------|
 | **NVIDIA GPU** (GeForce / RTX) | `wisper-windows-cuda` or `.\dev-cuda.ps1` | CUDA |
 | **AMD or Intel GPU** on Windows/Linux | `wisper-*-vulkan` or `.\dev.ps1 -GpuBackend vulkan` | Vulkan |
-| **Apple Mac** (M-series or Intel) | Universal macOS `.dmg` from GitHub Releases (beta.12+) or `./dev-macos.sh` | Metal |
+| **Apple Mac** (M-series) | macOS `_aarch64.dmg` from GitHub Releases or `./dev-macos.sh` | Metal |
+| **Apple Mac** (Intel) | macOS `_x64.dmg` from GitHub Releases or `./dev-macos.sh` | Metal |
 | **No GPU / old PC / CI smoke** | `wisper-*-cpu` or `.\dev.ps1 -GpuBackend cpu` | CPU-only |
 
 **Intel iGPU on Windows/Linux:** use the **Vulkan** build — not SYCL. SYCL remains an advanced developer-only path (`dev-sycl.ps1`).

@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **macOS release** — CI builds a **universal DMG** (`universal-apple-darwin`) so Intel and Apple Silicon Macs install from the same GitHub Release asset (beta.12+).
+- **macOS release** — CI builds separate **Intel (`x86_64`)** and **Apple Silicon (`aarch64`)** DMGs (beta.13+). beta.12 failed: `universal-apple-darwin` is not a valid Rust target on stable.
 - **Docs in git** — only `README.md` and `CHANGELOG.md` are committed; `TECHNICAL_ARCHITECTURE.md`, `ROADMAP.md`, `GPU_BACKENDS.md`, and office docs stay local (`.gitignore`).
 - **Intel SYCL demoted to advanced-only** — removed from `dev.ps1` auto-detect; use `dev-sycl.ps1` explicitly. Intel iGPU users should use Vulkan builds.
 - PRD `.docx` files stay local (`.gitignore`); README no longer links committed PRD paths.
@@ -54,20 +54,20 @@ Target: **beta deployable** (installable build for trusted testers), then **Phas
 | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Phase 1 exit QA (manual)                             | Automated preflight passed — manual checklist pending (`phase1-exit-qa.ps1`) |
 | Long MP3 decode (ffmpeg fallback)                    | Done — verified 12-min + 59-min MP3 on CUDA                                  |
-| Release CI (tag builds)                              | **Done** — universal macOS DMG in beta.12                                    |
+| Release CI (tag builds)                              | **In progress** — beta.12 failed; beta.13 dual-arch macOS DMG                 |
 | Desktop smoke (frontend build in CI)                 | Done — `npm run build` in CPU smoke job                                      |
 | Tier 1 bug fixes (mic, URL errors, orphan downloads) | Done                                                                         |
 | Security SEC-001 / SEC-002                           | Done — save dialog export + URL SSRF hardening                               |
 | Security SEC-003+ (CSP, capabilities)                | Pending — before wider beta                                                  |
 | Video import verify (MP4/MOV)                        | Automated symphonia test + manual drag-drop                                  |
 | Phase 2 minimum (export, search, delete)             | Done — TXT export, clipboard, FTS search, delete                             |
-| Release pipeline (GitHub Releases)                   | **Done** — [v0.2.0-beta.11](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.11); beta.12 adds Intel Mac DMG |
+| Release pipeline (GitHub Releases)                   | **Done** — [v0.2.0-beta.11](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.11); beta.13 adds Intel Mac `_x64.dmg` |
 | First-run onboarding (model + yt-dlp)                | Done — setup banner + model guard                                            |
 | Week 2 UX (progressive disclosure)                   | PRD done — implementation pending                                            |
-| Version sync (UI vs tags)                            | **0.2.0-beta.12** — next tag                                                 |
+| Version sync (UI vs tags)                            | **0.2.0-beta.13** — next tag                                                 |
 
 
-**Tag `v0.2.0-beta.12`** — macOS universal DMG (Intel + Apple Silicon); Windows/Linux unchanged from beta.11.
+**Tag `v0.2.0-beta.13`** — macOS Intel (`x86_64`) + Apple Silicon (`aarch64`) DMGs; Windows/Linux unchanged from beta.11. beta.12 failed (invalid `universal-apple-darwin` Rust target).
 
 See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./QA-CHECKLIST.md).
 

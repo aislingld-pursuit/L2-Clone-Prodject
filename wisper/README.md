@@ -31,7 +31,7 @@ chmod +x dev-linux.sh && ./dev-linux.sh
 
 Cross-desktop: Windows, macOS, and Linux share the same Cargo features. See the repo root README — **Which build should I use?**
 
-**macOS releases (beta.12+):** GitHub Release DMG is **universal** (Intel + Apple Silicon). Older beta.11 DMG was Apple Silicon only.
+**macOS releases (beta.13+):** two DMGs on GitHub Releases — `_aarch64` (Apple Silicon) and `_x64` (Intel). beta.11 was Apple Silicon only.
 
 | Script | Platform | Backend |
 |--------|----------|---------|
