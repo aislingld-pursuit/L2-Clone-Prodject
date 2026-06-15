@@ -119,15 +119,15 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Build Tauri bundle (Metal, Apple Silicon)
-        run: npm run tauri -- build -- --target aarch64-apple-darwin
+        run: npm run tauri -- build
       - name: Build Tauri bundle (Metal, Intel)
-        run: npm run tauri -- build -- --target x86_64-apple-darwin
+        run: npm run tauri -- build --target x86_64-apple-darwin
       - name: Upload macOS bundles
         uses: actions/upload-artifact@v4
         with:
           name: wisper-macos
           path: |
-            wisper/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            wisper/target/release/bundle/dmg/*.dmg
             wisper/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
