@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.16](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.16) - 2026-06-17
+
+### Fixed
+
+- **macOS Release CI** — flaky `bundle_dmg.sh` failures on GitHub Actions: pin `macos-15`, set `TAURI_BUNDLER_DMG_IGNORE_CI=false`, detach stale DMG mounts, retry DMG bundling up to 3 times with cleanup between attempts.
+
+**Tag `v0.2.0-beta.16`** — re-ships beta.15 welcome-guide build with reliable macOS `_x64.dmg` / `_aarch64.dmg` artifacts.
+
 ## [0.2.0-beta.15](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.15) - 2026-06-16
 
 ### Added
@@ -26,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tag `v0.2.0-beta.15`** — partner-friendly onboarding for Intel and Apple Silicon Mac testers (`_x64.dmg` / `_aarch64.dmg`).
 
-## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.15...HEAD)
+## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.16...HEAD)
 
 ### Added
 
@@ -75,7 +83,7 @@ Target: **beta deployable** (installable build for trusted testers), then **Phas
 | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Phase 1 exit QA (manual)                             | Automated preflight passed — manual checklist pending (`phase1-exit-qa.ps1`) |
 | Long MP3 decode (ffmpeg fallback)                    | Done — verified 12-min + 59-min MP3 on CUDA                                  |
-| Release CI (tag builds)                              | **Done** — beta.14 macOS bundler path; beta.15 welcome guide                |
+| Release CI (tag builds)                              | **Done** — beta.16 macOS DMG retry + macos-15 runner                      |
 | Desktop smoke (frontend build in CI)                 | Done — `npm run build` in CPU smoke job                                      |
 | Tier 1 bug fixes (mic, URL errors, orphan downloads) | Done                                                                         |
 | Security SEC-001 / SEC-002                           | Done — save dialog export + URL SSRF hardening                               |
@@ -85,10 +93,10 @@ Target: **beta deployable** (installable build for trusted testers), then **Phas
 | Release pipeline (GitHub Releases)                   | **Done** — [v0.2.0-beta.11](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.11); beta.15 adds welcome guide |
 | First-run onboarding (model + yt-dlp)                | Done — welcome guide + one-click model download (beta.15)                    |
 | Week 2 UX (progressive disclosure)                   | **Done** — welcome guide + advanced settings (beta.15)                       |
-| Version sync (UI vs tags)                            | **0.2.0-beta.15**                                                            |
+| Version sync (UI vs tags)                            | **0.2.0-beta.16**                                                            |
 
 
-**Tag `v0.2.0-beta.15`** — partner-friendly onboarding; macOS `_x64.dmg` for Intel Mac testers (e.g. Jimmy's 2020 MacBook Pro).
+**Tag `v0.2.0-beta.16`** — welcome guide (beta.15) plus reliable macOS release CI.
 
 See local [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./QA-CHECKLIST.md).
 

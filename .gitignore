@@ -30,3 +30,6 @@ wisper/node_modules/
 wisper/dist/
 wisper/target/
 wisper/.tauri/
+
+# Local architecture diagram (generated HTML, open in browser)
+docs/WISPER_ARCHITECTURE_FLOW.html

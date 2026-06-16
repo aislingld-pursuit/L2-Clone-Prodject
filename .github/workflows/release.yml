@@ -103,7 +103,10 @@ jobs:
 
   build-macos:
     name: macOS bundle (Intel + Apple Silicon)
-    runs-on: macos-latest
+    runs-on: macos-15
+    env:
+      # Newer GitHub runner images can hang DMG AppleScript when this is true.
+      TAURI_BUNDLER_DMG_IGNORE_CI: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -118,10 +121,47 @@ jobs:
         run: npm ci
       - name: Build frontend
         run: npm run build
+      - name: Prepare macOS DMG bundler
+        run: |
+          # Detach stale Wisper DMG mounts from prior failed runs on shared runners.
+          hdiutil info 2>/dev/null | awk '/\/Volumes\/Wisper/ {print $1}' | while read -r dev; do
+            hdiutil detach "$dev" -force 2>/dev/null || true
+          done
+          pkill -f diskimages-helper 2>/dev/null || true
       - name: Build Tauri bundle (Metal, Apple Silicon)
-        run: npm run tauri -- build
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Apple Silicon bundle attempt ${attempt}/3"
+            if npm run tauri -- build -- --verbose; then
+              exit 0
+            fi
+            echo "DMG bundling failed; cleaning up before retry..."
+            hdiutil info 2>/dev/null | awk '/\/Volumes\/Wisper/ {print $1}' | while read -r dev; do
+              hdiutil detach "$dev" -force 2>/dev/null || true
+            done
+            pkill -f diskimages-helper 2>/dev/null || true
+            rm -f target/release/bundle/dmg/*.dmg 2>/dev/null || true
+            sleep 5
+          done
+          exit 1
       - name: Build Tauri bundle (Metal, Intel)
-        run: npm run tauri -- build --target x86_64-apple-darwin
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "Intel bundle attempt ${attempt}/3"
+            if npm run tauri -- build --target x86_64-apple-darwin -- --verbose; then
+              exit 0
+            fi
+            echo "DMG bundling failed; cleaning up before retry..."
+            hdiutil info 2>/dev/null | awk '/\/Volumes\/Wisper/ {print $1}' | while read -r dev; do
+              hdiutil detach "$dev" -force 2>/dev/null || true
+            done
+            pkill -f diskimages-helper 2>/dev/null || true
+            rm -f target/x86_64-apple-darwin/release/bundle/dmg/*.dmg 2>/dev/null || true
+            sleep 5
+          done
+          exit 1
       - name: Upload macOS bundles
         uses: actions/upload-artifact@v4
         with:
