@@ -1059,6 +1059,16 @@ function App() {
         <p className="privacy-subtitle">
           Transcription runs locally on your device. No data leaves your computer.
         </p>
+        {modelMissing && !showWelcome && (
+          <div className="model-banner" role="status">
+            <p>
+              Speech model not installed yet. Download once to start transcribing.
+            </p>
+            <button type="button" className="primary" onClick={openWelcomeGuide}>
+              Get started
+            </button>
+          </div>
+        )}
         <p className="drop-hint">
           Drop an audio or video file here, or use the buttons below.
         </p>
