@@ -446,6 +446,29 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.disabled-muted:disabled,
+button:disabled.disabled-muted {
+  opacity: 1;
+  color: #999;
+  background: #2a2f36;
+  border-color: #3a4048;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+button.primary.disabled-muted:disabled,
+button.primary:disabled.disabled-muted {
+  background: #3d5248;
+  color: #9aa0a6;
+}
+
+.disabled-hint {
+  margin: 0.5rem 0 0;
+  width: 100%;
+  font-size: 0.85rem;
+  color: #9aa0a6;
+}
+
 .status {
   margin: 1rem 0 0;
   color: #9aa0a6;

@@ -1076,9 +1076,9 @@ function App() {
           {!isRecording ? (
             <button
               type="button"
-              className="record"
+              className={`record${modelMissing ? " disabled-muted" : ""}`}
               onClick={startRecording}
-              disabled={busy}
+              disabled={busy || modelMissing}
             >
               Record
             </button>
@@ -1097,12 +1097,20 @@ function App() {
           </button>
           <button
             type="button"
-            className="primary"
+            className={`primary${!audioPath || modelMissing ? " disabled-muted" : ""}`}
             onClick={transcribe}
-            disabled={busy || isRecording || !audioPath}
+            disabled={busy || isRecording || !audioPath || modelMissing}
           >
             {busy ? "Transcribing…" : "Transcribe"}
           </button>
+          {modelMissing && (
+            <p className="hint disabled-hint">
+              Install the speech model first — use Get started above.
+            </p>
+          )}
+          {!modelMissing && !audioPath && !busy && !isRecording && (
+            <p className="hint disabled-hint">Choose or record audio to enable Transcribe.</p>
+          )}
           {busy && (
             <button type="button" className="cancel" onClick={cancelTranscription}>
               Cancel
@@ -1127,14 +1135,9 @@ function App() {
               />
               <button
                 type="button"
-                className="primary"
+                className={`primary${!ytDlpStatus?.available || !urlInput.trim() ? " disabled-muted" : ""}`}
                 onClick={importUrlAndTranscribe}
                 disabled={busy || isRecording || !ytDlpStatus?.available || !urlInput.trim()}
-                title={
-                  ytDlpStatus?.available
-                    ? undefined
-                    : "Install yt-dlp first (see hint below)"
-                }
               >
                 Download & transcribe
               </button>
@@ -1142,6 +1145,11 @@ function App() {
             {ytDlpStatus && (
               <p className={`hint${ytDlpStatus.available ? "" : " warn"}`}>
                 {ytDlpStatus.hint}
+              </p>
+            )}
+            {!ytDlpStatus?.available && (
+              <p className="hint disabled-hint">
+                URL import needs yt-dlp installed on your system.
               </p>
             )}
           </div>
@@ -1228,14 +1236,15 @@ function App() {
           <div className="fallback-notice" role="status" aria-live="polite">
             <strong>{fallbackNotice.from_gpu} unavailable</strong>
             <span>
-              Retrying on CPU ({computeInfo?.cpu_architecture ?? "ggml-cpu"}).
+              Restarting on CPU ({computeInfo?.cpu_architecture ?? "ggml-cpu"}) from the
+              beginning.
             </span>
           </div>
         )}
 
         {lastUsedCpuFallback && !busy && !fallbackNotice && (
           <div className="fallback-complete" role="status">
-            Completed on CPU after GPU fallback.
+            Completed on CPU after GPU restarted from the beginning.
           </div>
         )}
 
