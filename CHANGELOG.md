@@ -51,28 +51,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tag `v0.2.0-beta.15`** — partner-friendly onboarding for Intel and Apple Silicon Mac testers (`_x64.dmg` / `_aarch64.dmg`).
 
-## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.18...HEAD)
+## [0.2.0-beta.19](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.18...v0.2.0-beta.19) - 2026-06-17
 
 ### Added
 
-- **Week 2 planning docs** — `docs/Aisling-corrections.md` (authoritative reconciliation + [HEART](https://www.heartframework.com/) UX metrics), `docs/Week2-PRD-STATUS.md`, committed `ROADMAP.md` / `TODO.md`.
-- **Jimmy-Contributions branch** — HEART-guided beta.19–20 implementation (in progress).
+- **Model tier selector** — Small / Medium / Large in welcome guide and Advanced options; downloads `tiny`, `base`, or `large-turbo` (~1.6 GB).
+- **Hardware advisor** — “Check your system” step reads RAM, CPU, and GPU, runs a quick test, and recommends a model tier.
+- **Privacy subtitle** on the transcribe panel — local-only reassurance copy.
+- **Model-missing banner** — inline prompt to open Get started when no speech model is installed.
+- **Remember-open Advanced** — checkbox persists Advanced options across launches (`wisper-keep-advanced-open`).
 
-### Planned (beta.19)
+### Changed
 
-- Model tier selector (Small / Medium / Large) with `large-turbo` support.
-- Hardware advisor: system spec reader, optional micro-benchmark, model recommendation.
-- Advanced options label + “keep open on this computer” checkbox.
-- Privacy subtitle on main transcribe panel.
+- **Advanced settings** renamed to **Advanced options**.
+- Advanced panel collapses automatically while recording.
+- Disabled primary buttons use clearer styling with visible hints (no tooltip-only affordances).
+- GPU fallback copy clarifies CPU restart from the beginning.
+
+## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.19...HEAD)
 
 ### Planned (beta.20)
 
 - Advanced panel a11y (`aria-expanded`, Escape).
 - Optional video format hints (no file size caps).
-
-### Changed
-
-- Week 2 partial delivery documented: beta.15 (welcome guide) + beta.17–18 (updates); remaining UX on `Jimmy-Contributions`.
 
 ### Removed from scope
 

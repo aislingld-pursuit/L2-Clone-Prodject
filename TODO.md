@@ -30,16 +30,16 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 
 ## Slice B — beta.19 (one feature → smoke → commit)
 
-- [ ] **B7** — Rename “Advanced settings” → “Advanced options”  
-- [ ] **B1** — Privacy subtitle on transcribe panel  
-- [ ] **B5** — Collapse Advanced while recording  
-- [ ] **B8** — Remember-open checkbox (`wisper-keep-advanced-open`)  
-- [ ] **B6** — Model tier selector + `large-turbo` in `StarterModel`  
-- [ ] **B9** — Hardware advisor (`get_system_profile`, `run_compute_benchmark`, recommend)  
-- [ ] **B2** — Model-missing inline banner  
-- [ ] **B3** — Disabled button styling pass  
-- [ ] **B4** — GPU fallback copy alignment (if needed)  
-- [ ] Bump version → **0.2.0-beta.19** + CHANGELOG  
+- [x] **B7** — Rename “Advanced settings” → “Advanced options”  
+- [x] **B1** — Privacy subtitle on transcribe panel  
+- [x] **B5** — Collapse Advanced while recording  
+- [x] **B8** — Remember-open checkbox (`wisper-keep-advanced-open`)  
+- [x] **B6** — Model tier selector + `large-turbo` in `StarterModel`  
+- [x] **B9** — Hardware advisor (`get_system_profile`, `run_compute_benchmark`, recommend)  
+- [x] **B2** — Model-missing inline banner  
+- [x] **B3** — Disabled button styling pass  
+- [x] **B4** — GPU fallback copy alignment (if needed)  
+- [x] Bump version → **0.2.0-beta.19** + CHANGELOG  
 - [ ] Tag `v0.2.0-beta.19` + Release CI  
 
 ---
