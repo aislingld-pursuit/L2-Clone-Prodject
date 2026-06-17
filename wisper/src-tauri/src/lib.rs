@@ -17,6 +17,7 @@ use wisper_core::{
     yt_dlp_status, AppAbout, ComputeBackend, ComputeInfo, DownloadProgress, ModelStatus,
     StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage, TranscribeOptions,
     TranscriptSegment, TranscriptionProgress, WhisperEngine, WisperError, YtDlpStatus,
+    UpdateCheckResult, check_for_update,
 };
 
 struct AppState {
@@ -286,6 +287,18 @@ fn get_compute_info() -> ComputeInfo {
 #[tauri::command]
 fn get_app_about(app: tauri::AppHandle) -> AppAbout {
     app_about(app.package_info().version.to_string())
+}
+
+#[tauri::command]
+fn check_for_app_update(app: tauri::AppHandle) -> UpdateCheckResult {
+    check_for_update(&app.package_info().version.to_string())
+}
+
+#[tauri::command]
+fn open_release_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -681,6 +694,8 @@ pub fn run() {
             start_model_download,
             get_compute_info,
             get_app_about,
+            check_for_app_update,
+            open_release_url,
             list_recordings,
             get_transcript,
             update_segment,

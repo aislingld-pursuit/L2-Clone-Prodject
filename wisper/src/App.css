@@ -135,6 +135,67 @@ body {
   padding-top: 0.75rem;
 }
 
+.about-updates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 1rem 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2a2f3a;
+}
+
+.about-updates h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.about-update-available {
+  margin: 0;
+  color: #e8eaed;
+}
+
+.about-update-notes {
+  margin: 0;
+  max-height: 6rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.about-update-error {
+  color: #f4a261;
+}
+
+.update-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-color: #2f5c45;
+  background: #15241c;
+}
+
+.update-banner h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.update-banner p {
+  margin: 0;
+  color: #c4c7c5;
+}
+
+.update-banner-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.update-banner-copy {
+  min-width: 0;
+}
+
 .guide-backdrop {
   position: fixed;
   inset: 0;

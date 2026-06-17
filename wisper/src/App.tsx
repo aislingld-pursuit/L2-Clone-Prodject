@@ -6,6 +6,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import { GUIDE_COMPLETE_KEY, WelcomeGuide } from "./WelcomeGuide";
 
+const UPDATE_DISMISS_KEY = "wisper-update-dismissed";
+
 interface TranscriptSegment {
   start_ms: number;
   end_ms: number;
@@ -34,6 +36,16 @@ interface AppAbout extends ComputeInfo {
   app_version: string;
   platform_os: string;
   release_artifact: string;
+}
+
+interface UpdateCheckResult {
+  available: boolean;
+  current_version: string;
+  latest_version: string | null;
+  release_url: string | null;
+  download_url: string | null;
+  notes: string | null;
+  check_error: string | null;
 }
 
 function computeHint(info: ComputeInfo | null): string {
@@ -224,6 +236,11 @@ function App() {
   const [lastUsedCpuFallback, setLastUsedCpuFallback] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [aboutInfo, setAboutInfo] = useState<AppAbout | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() =>
+    localStorage.getItem(UPDATE_DISMISS_KEY),
+  );
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus | null>(
     null,
@@ -256,6 +273,42 @@ function App() {
     }
   }, []);
 
+  const refreshUpdateCheck = useCallback(async () => {
+    setUpdateChecking(true);
+    try {
+      const result = await invoke<UpdateCheckResult>("check_for_app_update");
+      setUpdateInfo(result);
+      return result;
+    } catch (e) {
+      const message = String(e);
+      setUpdateInfo({
+        available: false,
+        current_version: aboutInfo?.app_version ?? "",
+        latest_version: null,
+        release_url: null,
+        download_url: null,
+        notes: null,
+        check_error: message,
+      });
+      return null;
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, [aboutInfo?.app_version]);
+
+  const openUpdateRelease = useCallback(async (url: string) => {
+    try {
+      await invoke("open_release_url", { url });
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
+  const dismissUpdateBanner = useCallback((version: string) => {
+    localStorage.setItem(UPDATE_DISMISS_KEY, version);
+    setUpdateDismissedVersion(version);
+  }, []);
+
   useEffect(() => {
     refreshModelStatus().catch((e) => setError(String(e)));
 
@@ -274,7 +327,8 @@ function App() {
       .catch((e) => setError(String(e)));
 
     refreshLibrary();
-  }, [refreshLibrary, refreshModelStatus]);
+    void refreshUpdateCheck();
+  }, [refreshLibrary, refreshModelStatus, refreshUpdateCheck]);
 
   useEffect(() => {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -345,6 +399,8 @@ function App() {
       .then(setAboutInfo)
       .catch((e) => setError(String(e)));
 
+    void refreshUpdateCheck();
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShowAbout(false);
@@ -353,7 +409,7 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [showAbout]);
+  }, [showAbout, refreshUpdateCheck]);
 
   useEffect(() => {
     const unlistenProgress = listen<TranscriptionProgress>(
@@ -739,6 +795,12 @@ function App() {
 
   const gpuLabel = computeInfo?.gpu_backend ?? "GPU";
   const modelMissing = modelStatus !== null && !modelStatus.ready;
+  const updateReleaseUrl =
+    updateInfo?.download_url ?? updateInfo?.release_url ?? null;
+  const showUpdateBanner =
+    updateInfo?.available === true &&
+    updateInfo.latest_version !== null &&
+    updateDismissedVersion !== updateInfo.latest_version;
   const downloading = busy && downloadProgress !== null;
   const transcribing = busy && !downloading;
   const showUrlSteps = urlJobActive && busy;
@@ -788,6 +850,33 @@ function App() {
           </button>
         </div>
       </header>
+
+      {showUpdateBanner && updateInfo?.latest_version && updateReleaseUrl && (
+        <section className="panel update-banner" aria-live="polite">
+          <div className="update-banner-copy">
+            <h2>Update available</h2>
+            <p>
+              Wisper <strong>{updateInfo.latest_version}</strong> is ready. You&apos;re on{" "}
+              {updateInfo.current_version}.
+            </p>
+          </div>
+          <div className="update-banner-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => void openUpdateRelease(updateReleaseUrl)}
+            >
+              View release
+            </button>
+            <button
+              type="button"
+              onClick={() => dismissUpdateBanner(updateInfo.latest_version!)}
+            >
+              Not now
+            </button>
+          </div>
+        </section>
+      )}
 
       {modelMissing && !showWelcome && (
         <section className="panel onboarding" aria-live="polite">
@@ -868,6 +957,47 @@ function App() {
             ) : (
               <p className="hint">Loading build info…</p>
             )}
+            <div className="about-updates">
+              <h3>Updates</h3>
+              {updateChecking ? (
+                <p className="hint">Checking for updates…</p>
+              ) : updateInfo?.check_error ? (
+                <p className="hint about-update-error">{updateInfo.check_error}</p>
+              ) : updateInfo?.available ? (
+                <>
+                  <p className="about-update-available">
+                    <strong>{updateInfo.latest_version}</strong> is available (you have{" "}
+                    {updateInfo.current_version}).
+                  </p>
+                  {updateInfo.notes && (
+                    <p className="hint about-update-notes">{updateInfo.notes}</p>
+                  )}
+                  {updateReleaseUrl && (
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => void openUpdateRelease(updateReleaseUrl)}
+                    >
+                      View release
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="hint">
+                  You&apos;re on the latest release
+                  {updateInfo?.latest_version
+                    ? ` (${updateInfo.latest_version}).`
+                    : "."}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => void refreshUpdateCheck()}
+                disabled={updateChecking}
+              >
+                Check for updates
+              </button>
+            </div>
             <p className="hint about-footnote">
               Each installer links one GPU stack (Vulkan, CUDA, or Metal). Use the
               artifact that matches your GPU — see the repo README.

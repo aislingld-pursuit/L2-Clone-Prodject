@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.17](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.17) - 2026-06-08
+
+### Added
+
+- **Check for updates** — on launch and in **About**, Wisper checks GitHub Releases for a newer beta; shows a banner with **View release** (opens the right installer for your platform) or **Not now** (dismisses until the next version).
+
+**Tag `v0.2.0-beta.17`** — first build with in-app update notifications for beta testers.
+
 ## [0.2.0-beta.16](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.16) - 2026-06-17
 
 ### Fixed
@@ -34,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tag `v0.2.0-beta.15`** — partner-friendly onboarding for Intel and Apple Silicon Mac testers (`_x64.dmg` / `_aarch64.dmg`).
 
-## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.16...HEAD)
+## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.17...HEAD)
 
 ### Added
 
@@ -93,7 +101,7 @@ Target: **beta deployable** (installable build for trusted testers), then **Phas
 | Release pipeline (GitHub Releases)                   | **Done** — [v0.2.0-beta.11](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.11); beta.15 adds welcome guide |
 | First-run onboarding (model + yt-dlp)                | Done — welcome guide + one-click model download (beta.15)                    |
 | Week 2 UX (progressive disclosure)                   | **Done** — welcome guide + advanced settings (beta.15)                       |
-| Version sync (UI vs tags)                            | **0.2.0-beta.16**                                                            |
+| Version sync (UI vs tags)                            | **0.2.0-beta.17**                                                            |
 
 
 **Tag `v0.2.0-beta.16`** — welcome guide (beta.15) plus reliable macOS release CI.

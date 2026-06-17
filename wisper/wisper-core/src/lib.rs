@@ -7,6 +7,7 @@ pub mod fetch;
 pub mod model;
 pub mod storage;
 pub mod transcribe;
+pub mod update;
 
 pub use compute::{
     app_about, compiled_gpu_backend, compute_info, cpu_architecture_label, platform_os_label,
@@ -27,6 +28,7 @@ pub use transcribe::{
     transcribe_file, transcribe_with_engine, GpuFallbackNotice, TranscribeOptions,
     TranscriptSegment, TranscriptionProgress, TranscriptionResult,
 };
+pub use update::{check_for_update, UpdateCheckResult, GITHUB_REPO};
 
 /// Default model filename (user downloads to app data dir on first run).
 pub const DEFAULT_MODEL_FILENAME: &str = "ggml-large-v3-turbo.bin";
