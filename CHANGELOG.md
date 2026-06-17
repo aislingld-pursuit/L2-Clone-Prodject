@@ -55,9 +55,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Week 2 Improvement PRD** — guided first screen + progressive disclosure (local `Aisling Improvement Week 2 PRD - Filled.docx`; regenerate via `generate_improvement_prd.py`).
-- **Local planning docs** — `ROADMAP.md`, `TODO.md`, `QA-CHECKLIST.md` (QA-ordered tasks; not committed — see `.gitignore`).
-- **Security audit doc** — `Wisper-Security-Audit.docx` (local; regenerate via `generate_security_audit.py`).
+- **Week 2 planning docs** — `docs/Aisling-corrections.md` (authoritative reconciliation + [HEART](https://www.heartframework.com/) UX metrics), `docs/Week2-PRD-STATUS.md`, committed `ROADMAP.md` / `TODO.md`.
+- **Jimmy-Contributions branch** — HEART-guided beta.19–20 implementation (in progress).
+
+### Planned (beta.19)
+
+- Model tier selector (Small / Medium / Large) with `large-turbo` support.
+- Hardware advisor: system spec reader, optional micro-benchmark, model recommendation.
+- Advanced options label + “keep open on this computer” checkbox.
+- Privacy subtitle on main transcribe panel.
+
+### Planned (beta.20)
+
+- Advanced panel a11y (`aria-expanded`, Escape).
+- Optional video format hints (no file size caps).
+
+### Changed
+
+- Week 2 partial delivery documented: beta.15 (welcome guide) + beta.17–18 (updates); remaining UX on `Jimmy-Contributions`.
+
+### Removed from scope
+
+- 1 GB file upload cap (local app — no size limits on upload, URL, recording, or models).
+
+---
+
+## Historical unreleased notes (pre-beta.19 docs commit)
 - **Phase 1 import flows** — microphone recording (cpal), file picker + drag-and-drop (audio/video), YouTube/URL import via yt-dlp, language select, two-step download → transcribe progress, library source labels (“Downloaded from URL” vs “Fully offline”).
 - `**wisper/scripts/download-model.ps1`** — download GGML models into app data (tiny / base / large-turbo).
 - **Download guide** — README and [GPU_BACKENDS.md](./GPU_BACKENDS.md) “Which installer?” table (NVIDIA → CUDA, AMD/Intel → Vulkan, Mac → Metal, fallback → CPU).

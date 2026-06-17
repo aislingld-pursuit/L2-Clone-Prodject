@@ -9,12 +9,13 @@ Privacy-first, local-only clone of **Whisper Notes** — record, import files, o
 
 | File | Description |
 |------|-------------|
-| [CHANGELOG.md](./CHANGELOG.md) | Release and unreleased change history (committed) |
-| `ROADMAP.md` | Phase plan, Week 2 findings, release status (local) |
-| `TODO.md` | QA-ordered task list (local) |
-| `QA-CHECKLIST.md` | Step-by-step verification sequence (local) |
-| `Aisling Improvement Week 2 PRD - Filled.docx` | Week 2 improvement PRD — progressive disclosure (local) |
-| `Wisper-Security-Audit.docx` | Security audit findings (local) |
+| [CHANGELOG.md](./CHANGELOG.md) | Release and unreleased change history |
+| [ROADMAP.md](./ROADMAP.md) | Phase plan, HEART beta.19–20, release status |
+| [TODO.md](./TODO.md) | QA-ordered task list (beta.19 feature gates) |
+| [QA-CHECKLIST.md](./QA-CHECKLIST.md) | Step-by-step verification sequence |
+| [docs/Aisling-corrections.md](./docs/Aisling-corrections.md) | **Authoritative** Week 2 reconciliation + HEART plan |
+| [docs/Week2-PRD-STATUS.md](./docs/Week2-PRD-STATUS.md) | Jimmy PRD → correction ID map |
+| `_partner-review/` | Jimmy’s Week 2 PRD package (reference) |
 
 Other docs (`TECHNICAL_ARCHITECTURE.md`, `GPU_BACKENDS.md`, net-new PRD `.docx`) stay on each developer machine — not committed to git (see `.gitignore`).
 
@@ -37,14 +38,14 @@ Requires template `.docx` files in Downloads or project root (close in Word if c
 
 ## Status
 
-**Phase 1 feature-complete · beta published**
+**Phase 1 feature-complete · beta.18 published · beta.19 in progress on `Jimmy-Contributions`**
 
-- Core flows shipped: mic, file/URL import, drag-and-drop, library, export, GPU fallback.
+- Core flows shipped: mic, file/URL import, drag-and-drop, library, export, GPU fallback, welcome guide, update checks.
 - SEC-001/002 fixed (save-dialog export, URL SSRF hardening).
-- **Release:** [v0.2.0-beta.11](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.11) — Windows CUDA, Linux Vulkan, macOS (Apple Silicon only until beta.12 universal DMG).
-- **Week 2 (next):** guided first screen / progressive disclosure — PRD complete, implementation pending.
+- **Latest release:** [v0.2.0-beta.18](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.18).
+- **Week 2 (beta.19–20):** HEART-guided UX — model tier selector, hardware advisor, Advanced options — see [docs/Aisling-corrections.md](./docs/Aisling-corrections.md).
 
-Phase plan and QA-ordered tasks: local `ROADMAP.md`, `TODO.md`, `QA-CHECKLIST.md`.
+Phase plan and QA tasks: [ROADMAP.md](./ROADMAP.md), [TODO.md](./TODO.md), [QA-CHECKLIST.md](./QA-CHECKLIST.md).
 
 ## Which build should I use?
 

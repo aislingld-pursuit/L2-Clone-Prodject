@@ -17,6 +17,14 @@ Wisper Clone PRD*.docx
 !README.md
 !**/README.md
 !CHANGELOG.md
+!ROADMAP.md
+!TODO.md
+!QA-CHECKLIST.md
+!docs/
+!docs/*.md
+!_partner-review/
+!_partner-review/*.md
+_partner-review/*.bundle
 
 # Local office / pitch docs
 *.docx
