@@ -134,6 +134,7 @@ type ComputeChoice = "cpu" | "gpu";
 const COMPUTE_STORAGE_KEY = "wisper-compute-backend";
 const LANGUAGE_STORAGE_KEY = "wisper-language";
 const ADVANCED_STORAGE_KEY = "wisper-show-advanced";
+const KEEP_ADVANCED_OPEN_KEY = "wisper-keep-advanced-open";
 
 const LANGUAGE_OPTIONS = [
   { value: "auto", label: "Auto-detect" },
@@ -227,7 +228,9 @@ function App() {
     () => localStorage.getItem(GUIDE_COMPLETE_KEY) !== "1",
   );
   const [showAdvanced, setShowAdvanced] = useState(
-    () => localStorage.getItem(ADVANCED_STORAGE_KEY) === "1",
+    () =>
+      localStorage.getItem(KEEP_ADVANCED_OPEN_KEY) === "1" ||
+      localStorage.getItem(ADVANCED_STORAGE_KEY) === "1",
   );
   const [progress, setProgress] = useState<TranscriptionProgress | null>(null);
   const [fallbackNotice, setFallbackNotice] = useState<GpuFallbackNotice | null>(
@@ -240,6 +243,9 @@ function App() {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateDismissedVersion, setUpdateDismissedVersion] = useState(() =>
     localStorage.getItem(UPDATE_DISMISS_KEY),
+  );
+  const [keepAdvancedOpen, setKeepAdvancedOpen] = useState(
+    () => localStorage.getItem(KEEP_ADVANCED_OPEN_KEY) === "1",
   );
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus | null>(
@@ -524,6 +530,12 @@ function App() {
     }
   }, [isRecording]);
 
+  useEffect(() => {
+    if (isRecording) {
+      setShowAdvanced(false);
+    }
+  }, [isRecording]);
+
   function selectBackend(next: ComputeChoice) {
     setComputeBackend(next);
     localStorage.setItem(COMPUTE_STORAGE_KEY, next);
@@ -540,6 +552,17 @@ function App() {
       localStorage.setItem(ADVANCED_STORAGE_KEY, next ? "1" : "0");
       return next;
     });
+  }
+
+  function toggleKeepAdvancedOpen(checked: boolean) {
+    setKeepAdvancedOpen(checked);
+    if (checked) {
+      localStorage.setItem(KEEP_ADVANCED_OPEN_KEY, "1");
+      setShowAdvanced(true);
+      localStorage.setItem(ADVANCED_STORAGE_KEY, "1");
+    } else {
+      localStorage.removeItem(KEEP_ADVANCED_OPEN_KEY);
+    }
   }
 
   function openWelcomeGuide() {
@@ -1194,6 +1217,15 @@ function App() {
                 Hide
               </button>
             </div>
+            <label className="keep-advanced-label">
+              <input
+                type="checkbox"
+                checked={keepAdvancedOpen}
+                onChange={(e) => toggleKeepAdvancedOpen(e.target.checked)}
+                disabled={busy || isRecording}
+              />
+              Keep open on this computer
+            </label>
 
             <h3 className="advanced-subtitle">Language</h3>
             <label className="field-label" htmlFor="language-select">
