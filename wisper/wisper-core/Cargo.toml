@@ -23,6 +23,7 @@ thiserror = "2"
 url = "2"
 uuid = { version = "1", features = ["v4"] }
 ureq = { version = "2.12", default-features = false, features = ["tls"] }
+sysinfo = "0.33"
 whisper-rs = { version = "0.16", default-features = false }
 
 # Metal on Apple Silicon and Intel Macs (whisper.cpp GGML_METAL).

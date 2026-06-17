@@ -861,6 +861,14 @@ function App() {
         modelReady={modelStatus?.ready ?? false}
         modelTier={modelTier}
         onModelTierChange={selectModelTier}
+        onApplyRecommendation={(rec) => {
+          selectModelTier(rec.model_key);
+          if (rec.backend === "gpu" && computeInfo?.gpu_available) {
+            selectBackend("gpu");
+          } else {
+            selectBackend("cpu");
+          }
+        }}
         onFinish={closeWelcomeGuide}
         onRefreshModel={refreshModelStatus}
       />

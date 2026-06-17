@@ -13,11 +13,12 @@ use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use wisper_core::{
     app_about, compute_info, download_starter_model, download_url, format_transcript_txt,
-    import_model_file, model_status, resolve_model_path, resolve_yt_dlp, transcribe_with_engine,
-    yt_dlp_status, AppAbout, ComputeBackend, ComputeInfo, DownloadProgress, ModelStatus,
-    StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage, TranscribeOptions,
-    TranscriptSegment, TranscriptionProgress, WhisperEngine, WisperError, YtDlpStatus,
-    UpdateCheckResult, check_for_update,
+    get_system_profile, import_model_file, model_status, recommend_model, resolve_model_path,
+    resolve_yt_dlp, run_compute_benchmark, transcribe_with_engine, yt_dlp_status, AppAbout,
+    BenchmarkResult, ComputeBackend, ComputeInfo, DownloadProgress, ModelRecommendation,
+    ModelStatus, StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage,
+    SystemProfile, TranscribeOptions, TranscriptSegment, TranscriptionProgress, WhisperEngine,
+    WisperError, YtDlpStatus, UpdateCheckResult, check_for_update,
 };
 
 struct AppState {
@@ -282,6 +283,27 @@ fn start_model_download(app: tauri::AppHandle, model: String) -> Result<(), Stri
 #[tauri::command]
 fn get_compute_info() -> ComputeInfo {
     compute_info()
+}
+
+#[derive(serde::Serialize)]
+struct HardwareAdvice {
+    profile: SystemProfile,
+    benchmark: BenchmarkResult,
+    recommendation: ModelRecommendation,
+}
+
+#[tauri::command]
+fn get_hardware_advice(app: tauri::AppHandle) -> HardwareAdvice {
+    let dir = models_dir(&app);
+    let profile = get_system_profile(&dir);
+    let compute = compute_info();
+    let benchmark = run_compute_benchmark();
+    let recommendation = recommend_model(&profile, &compute, Some(&benchmark));
+    HardwareAdvice {
+        profile,
+        benchmark,
+        recommendation,
+    }
 }
 
 #[tauri::command]
@@ -693,6 +715,7 @@ pub fn run() {
             import_model_from_path,
             start_model_download,
             get_compute_info,
+            get_hardware_advice,
             get_app_about,
             check_for_app_update,
             open_release_url,

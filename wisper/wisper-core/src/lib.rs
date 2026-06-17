@@ -4,6 +4,7 @@ pub mod engine;
 pub mod error;
 pub mod export;
 pub mod fetch;
+pub mod hardware;
 pub mod model;
 pub mod storage;
 pub mod transcribe;
@@ -17,6 +18,10 @@ pub use compute::{
 pub use engine::WhisperEngine;
 pub use error::WisperError;
 pub use export::format_transcript_txt;
+pub use hardware::{
+    get_system_profile, recommend_model, run_compute_benchmark, BenchmarkResult,
+    ModelRecommendation, SystemProfile,
+};
 pub use model::{
     download_starter_model, import_model_file, model_status, resolve_model_path, ModelStatus,
     StarterModel,

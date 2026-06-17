@@ -16,13 +16,37 @@ interface DownloadProgress {
   status: string;
 }
 
-type GuideStep = "welcome" | "model" | "how" | "done";
+type GuideStep = "welcome" | "system" | "model" | "how" | "done";
+
+interface SystemProfile {
+  total_ram_mb: number;
+  cpu_architecture: string;
+  physical_cores: number;
+  gpu_available: boolean;
+  gpu_backend: string | null;
+  models_dir_free_mb: number | null;
+}
+
+interface ModelRecommendation {
+  model_key: string;
+  model_label: string;
+  model_size: string;
+  backend: "cpu" | "gpu";
+  reason: string;
+}
+
+interface HardwareAdvice {
+  profile: SystemProfile;
+  benchmark: { ran: boolean; elapsed_ms: number };
+  recommendation: ModelRecommendation;
+}
 
 interface WelcomeGuideProps {
   open: boolean;
   modelReady: boolean;
   modelTier: string;
   onModelTierChange: (tier: string) => void;
+  onApplyRecommendation: (rec: ModelRecommendation) => void;
   onFinish: () => void;
   onRefreshModel: () => Promise<void>;
 }
@@ -32,6 +56,7 @@ export function WelcomeGuide({
   modelReady,
   modelTier,
   onModelTierChange,
+  onApplyRecommendation,
   onFinish,
   onRefreshModel,
 }: WelcomeGuideProps) {
@@ -41,6 +66,8 @@ export function WelcomeGuide({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [hardwareAdvice, setHardwareAdvice] = useState<HardwareAdvice | null>(null);
+  const [hardwareLoading, setHardwareLoading] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -48,7 +75,29 @@ export function WelcomeGuide({
     setError(null);
     setDownloadProgress(null);
     setDownloading(false);
+    setHardwareAdvice(null);
+    setHardwareLoading(false);
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || step !== "system") return;
+    let cancelled = false;
+    setHardwareLoading(true);
+    setError(null);
+    invoke<HardwareAdvice>("get_hardware_advice")
+      .then((advice) => {
+        if (!cancelled) setHardwareAdvice(advice);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setHardwareLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, step]);
 
   useEffect(() => {
     if (!visible || !downloading) return;
@@ -81,7 +130,30 @@ export function WelcomeGuide({
   if (!visible) return null;
 
   function goNextFromWelcome() {
-    setStep(modelReady ? "how" : "model");
+    if (modelReady) {
+      setStep("how");
+    } else {
+      setStep("system");
+    }
+  }
+
+  function useRecommended() {
+    if (!hardwareAdvice) return;
+    onApplyRecommendation(hardwareAdvice.recommendation);
+    setStep("model");
+  }
+
+  async function refreshSystemCheck() {
+    setHardwareLoading(true);
+    setError(null);
+    try {
+      const advice = await invoke<HardwareAdvice>("get_hardware_advice");
+      setHardwareAdvice(advice);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setHardwareLoading(false);
+    }
   }
 
   async function startDownload() {
@@ -148,6 +220,68 @@ export function WelcomeGuide({
           </>
         )}
 
+        {step === "system" && (
+          <>
+            <p className="guide-eyebrow">Check your system</p>
+            <h2 id="guide-title">Find the right model</h2>
+            <p className="guide-lead">
+              Wisper runs entirely on your computer. A quick check helps pick a model size
+              that fits your hardware.
+            </p>
+            {hardwareLoading && !hardwareAdvice && (
+              <p className="hint">Reading your system…</p>
+            )}
+            {hardwareAdvice && (
+              <div className="system-profile">
+                <p className="hint">
+                  {hardwareAdvice.profile.cpu_architecture} ·{" "}
+                  {Math.round(hardwareAdvice.profile.total_ram_mb / 1024)} GB RAM ·{" "}
+                  {hardwareAdvice.profile.physical_cores} cores
+                  {hardwareAdvice.profile.gpu_backend
+                    ? ` · ${hardwareAdvice.profile.gpu_backend}`
+                    : " · CPU only"}
+                </p>
+                <p className="guide-note">
+                  <strong>
+                    Recommended: {hardwareAdvice.recommendation.model_label} (
+                    {hardwareAdvice.recommendation.model_size})
+                  </strong>
+                  {" — "}
+                  {hardwareAdvice.recommendation.reason}
+                </p>
+                <p className="hint">
+                  Quick test finished in {hardwareAdvice.benchmark.elapsed_ms} ms.
+                </p>
+              </div>
+            )}
+            {error && <p className="error">{error}</p>}
+            <div className="guide-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={useRecommended}
+                disabled={hardwareLoading || !hardwareAdvice}
+              >
+                Use recommended
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep("model")}
+                disabled={hardwareLoading}
+              >
+                Choose myself
+              </button>
+              <button
+                type="button"
+                onClick={() => void refreshSystemCheck()}
+                disabled={hardwareLoading}
+              >
+                {hardwareLoading ? "Running test…" : "Run quick test again"}
+              </button>
+            </div>
+          </>
+        )}
+
         {step === "model" && (
           <>
             <p className="guide-eyebrow">Step 1 of 2</p>
@@ -173,7 +307,7 @@ export function WelcomeGuide({
               ))}
             </select>
             <p className="hint">
-              Not sure? Start with Medium, or use Check your system when that step appears.
+              Not sure? Go back to Check your system from Get started anytime.
             </p>
             {downloading && (
               <div className="guide-progress" aria-live="polite">
