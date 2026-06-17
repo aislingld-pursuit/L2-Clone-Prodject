@@ -1008,6 +1008,9 @@ function App() {
 
       <section className={`panel import-panel${dragOver ? " drag-over" : ""}`}>
         <h2 className="panel-title">Transcribe audio</h2>
+        <p className="privacy-subtitle">
+          Transcription runs locally on your device. No data leaves your computer.
+        </p>
         <p className="drop-hint">
           Drop an audio or video file here, or use the buttons below.
         </p>
