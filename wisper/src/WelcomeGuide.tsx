@@ -5,6 +5,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 export const GUIDE_COMPLETE_KEY = "wisper-guide-complete";
 
+const MODEL_TIERS = [
+  { key: "tiny", label: "Small", size: "~75 MB" },
+  { key: "base", label: "Medium", size: "~150 MB" },
+  { key: "large-turbo", label: "Large", size: "~1.6 GB" },
+] as const;
+
 interface DownloadProgress {
   percent: number | null;
   status: string;
@@ -15,6 +21,8 @@ type GuideStep = "welcome" | "model" | "how" | "done";
 interface WelcomeGuideProps {
   open: boolean;
   modelReady: boolean;
+  modelTier: string;
+  onModelTierChange: (tier: string) => void;
   onFinish: () => void;
   onRefreshModel: () => Promise<void>;
 }
@@ -22,6 +30,8 @@ interface WelcomeGuideProps {
 export function WelcomeGuide({
   open: visible,
   modelReady,
+  modelTier,
+  onModelTierChange,
   onFinish,
   onRefreshModel,
 }: WelcomeGuideProps) {
@@ -79,7 +89,7 @@ export function WelcomeGuide({
     setDownloading(true);
     setDownloadProgress({ percent: 0, status: "Starting download…" });
     try {
-      await invoke("start_model_download", { model: "base" });
+      await invoke("start_model_download", { model: modelTier });
     } catch (e) {
       setDownloading(false);
       setDownloadProgress(null);
@@ -143,8 +153,27 @@ export function WelcomeGuide({
             <p className="guide-eyebrow">Step 1 of 2</p>
             <h2 id="guide-title">Download the speech model</h2>
             <p className="guide-lead">
-              Wisper needs a one-time download (~150 MB) before it can understand speech.
-              You only do this once.
+              Wisper needs a one-time download before it can understand speech.
+              Pick a size for your computer — you only do this once.
+            </p>
+            <label className="field-label" htmlFor="guide-model-tier">
+              Model size
+            </label>
+            <select
+              id="guide-model-tier"
+              className="language-select"
+              value={modelTier}
+              onChange={(e) => onModelTierChange(e.target.value)}
+              disabled={downloading}
+            >
+              {MODEL_TIERS.map((tier) => (
+                <option key={tier.key} value={tier.key}>
+                  {tier.label} ({tier.size})
+                </option>
+              ))}
+            </select>
+            <p className="hint">
+              Not sure? Start with Medium, or use Check your system when that step appears.
             </p>
             {downloading && (
               <div className="guide-progress" aria-live="polite">

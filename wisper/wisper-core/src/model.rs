@@ -8,14 +8,24 @@ use crate::DEFAULT_MODEL_FILENAME;
 pub enum StarterModel {
     Tiny,
     Base,
+    LargeTurbo,
 }
 
 impl StarterModel {
     pub fn from_key(key: &str) -> Option<Self> {
         match key.trim().to_lowercase().as_str() {
-            "tiny" => Some(Self::Tiny),
-            "base" => Some(Self::Base),
+            "tiny" | "small" => Some(Self::Tiny),
+            "base" | "medium" => Some(Self::Base),
+            "large-turbo" | "large" => Some(Self::LargeTurbo),
             _ => None,
+        }
+    }
+
+    pub fn download_key(self) -> &'static str {
+        match self {
+            Self::Tiny => "tiny",
+            Self::Base => "base",
+            Self::LargeTurbo => "large-turbo",
         }
     }
 
@@ -23,6 +33,7 @@ impl StarterModel {
         match self {
             Self::Tiny => "ggml-tiny.en.bin",
             Self::Base => "ggml-base.en.bin",
+            Self::LargeTurbo => "ggml-large-v3-turbo.bin",
         }
     }
 
@@ -34,6 +45,9 @@ impl StarterModel {
             Self::Base => {
                 "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
             }
+            Self::LargeTurbo => {
+                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
+            }
         }
     }
 
@@ -41,6 +55,15 @@ impl StarterModel {
         match self {
             Self::Tiny => "~75 MB",
             Self::Base => "~150 MB",
+            Self::LargeTurbo => "~1.6 GB",
+        }
+    }
+
+    pub fn tier_label(self) -> &'static str {
+        match self {
+            Self::Tiny => "Small",
+            Self::Base => "Medium",
+            Self::LargeTurbo => "Large",
         }
     }
 }
@@ -194,6 +217,20 @@ pub fn download_starter_model(
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn starter_model_from_key_aliases() {
+        assert_eq!(StarterModel::from_key("small"), Some(StarterModel::Tiny));
+        assert_eq!(StarterModel::from_key("medium"), Some(StarterModel::Base));
+        assert_eq!(
+            StarterModel::from_key("large"),
+            Some(StarterModel::LargeTurbo)
+        );
+        assert_eq!(
+            StarterModel::from_key("large-turbo"),
+            Some(StarterModel::LargeTurbo)
+        );
+    }
 
     #[test]
     fn model_status_ready_when_bin_exists() {

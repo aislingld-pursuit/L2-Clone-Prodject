@@ -135,6 +135,13 @@ const COMPUTE_STORAGE_KEY = "wisper-compute-backend";
 const LANGUAGE_STORAGE_KEY = "wisper-language";
 const ADVANCED_STORAGE_KEY = "wisper-show-advanced";
 const KEEP_ADVANCED_OPEN_KEY = "wisper-keep-advanced-open";
+const MODEL_TIER_STORAGE_KEY = "wisper-model-tier";
+
+const MODEL_TIERS = [
+  { key: "tiny", label: "Small", size: "~75 MB" },
+  { key: "base", label: "Medium", size: "~150 MB" },
+  { key: "large-turbo", label: "Large", size: "~1.6 GB" },
+] as const;
 
 const LANGUAGE_OPTIONS = [
   { value: "auto", label: "Auto-detect" },
@@ -246,6 +253,9 @@ function App() {
   );
   const [keepAdvancedOpen, setKeepAdvancedOpen] = useState(
     () => localStorage.getItem(KEEP_ADVANCED_OPEN_KEY) === "1",
+  );
+  const [modelTier, setModelTier] = useState(
+    () => localStorage.getItem(MODEL_TIER_STORAGE_KEY) || "base",
   );
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus | null>(
@@ -565,6 +575,11 @@ function App() {
     }
   }
 
+  function selectModelTier(key: string) {
+    setModelTier(key);
+    localStorage.setItem(MODEL_TIER_STORAGE_KEY, key);
+  }
+
   function openWelcomeGuide() {
     setShowWelcome(true);
   }
@@ -844,6 +859,8 @@ function App() {
       <WelcomeGuide
         open={showWelcome}
         modelReady={modelStatus?.ready ?? false}
+        modelTier={modelTier}
+        onModelTierChange={selectModelTier}
         onFinish={closeWelcomeGuide}
         onRefreshModel={refreshModelStatus}
       />
@@ -1279,6 +1296,26 @@ function App() {
             <p className="hint compute-hint">{computeHint(computeInfo)}</p>
 
             <h3 className="advanced-subtitle">Speech model</h3>
+            <label className="field-label" htmlFor="model-tier-select">
+              Model size
+            </label>
+            <select
+              id="model-tier-select"
+              className="language-select"
+              value={modelTier}
+              onChange={(e) => selectModelTier(e.target.value)}
+              disabled={busy || isRecording || downloading}
+            >
+              {MODEL_TIERS.map((tier) => (
+                <option key={tier.key} value={tier.key}>
+                  {tier.label} ({tier.size})
+                </option>
+              ))}
+            </select>
+            <p className="hint">
+              Small is fastest on older hardware; Large is best quality. Change before
+              downloading in Get started.
+            </p>
             {modelStatus?.ready ? (
               <p className="model-ready">Installed and ready</p>
             ) : (
