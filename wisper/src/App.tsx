@@ -1089,7 +1089,7 @@ function App() {
         {!showAdvanced && (
           <p className="hint advanced-hint">
             <button type="button" className="link-button" onClick={toggleAdvanced}>
-              Advanced settings
+              Advanced options
             </button>
             {" "}— language, GPU, URL import, and model details.
           </p>
@@ -1186,7 +1186,7 @@ function App() {
         <>
           <section className="panel advanced-panel">
             <div className="advanced-header">
-              <h2 className="panel-title">Advanced settings</h2>
+              <h2 className="panel-title">Advanced options</h2>
               <button type="button" className="link-button" onClick={toggleAdvanced}>
                 Hide
               </button>
