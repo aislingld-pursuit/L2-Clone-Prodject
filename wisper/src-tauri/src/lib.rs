@@ -13,10 +13,12 @@ use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use wisper_core::{
     app_about, compute_info, download_starter_model, download_url, format_transcript_txt,
-    get_system_profile, import_model_file, model_status, recommend_model, resolve_model_path,
-    resolve_yt_dlp, run_compute_benchmark, transcribe_with_engine, yt_dlp_status, AppAbout,
+    get_system_profile, import_model_file, model_status_for_tier, recommend_model,
+    resolve_model_path_for_tier, resolve_yt_dlp, run_compute_benchmark, transcribe_with_engine,
+    download_all_starter_models, yt_dlp_status, AppAbout,
     BenchmarkResult, ComputeBackend, ComputeInfo, DownloadProgress, ModelRecommendation,
     ModelStatus, StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage,
+    is_model_file_valid,
     SystemProfile, TranscribeOptions, TranscriptSegment, TranscriptionProgress, WhisperEngine,
     WisperError, YtDlpStatus, UpdateCheckResult, check_for_update,
 };
@@ -48,8 +50,8 @@ fn db_path(app: &tauri::AppHandle) -> PathBuf {
     app_data_dir(app).join("wisper.db")
 }
 
-fn model_path(app: &tauri::AppHandle) -> PathBuf {
-    resolve_model_path(&models_dir(app))
+fn model_path(app: &tauri::AppHandle, model_tier: Option<&str>) -> PathBuf {
+    resolve_model_path_for_tier(&models_dir(app), model_tier)
 }
 
 fn backend_label(backend: ComputeBackend) -> &'static str {
@@ -112,10 +114,21 @@ fn run_transcription_job(
     title: String,
     source_url: Option<String>,
     language_label: Option<String>,
+    model_tier: Option<String>,
     cancel: Arc<AtomicBool>,
 ) -> Result<TranscribeResult, WisperError> {
     let app_state = app_handle.state::<AppState>();
-    let model = model_path(app_handle);
+    let model = model_path(app_handle, model_tier.as_deref());
+    let tier = model_tier
+        .as_deref()
+        .and_then(StarterModel::from_key)
+        .unwrap_or(StarterModel::Base);
+    if !is_model_file_valid(&model, tier) {
+        return Err(WisperError::Fetch(format!(
+            "{} speech model not installed — download it in Advanced options or Get started.",
+            tier.tier_label()
+        )));
+    }
     let source_label = recording_source.as_str().to_string();
 
     let transcription = {
@@ -231,13 +244,15 @@ struct StopRecordingResult {
 }
 
 #[tauri::command]
-fn get_model_path(app: tauri::AppHandle) -> Result<String, String> {
-    Ok(model_path(&app).to_string_lossy().into_owned())
+fn get_model_path(app: tauri::AppHandle, model: Option<String>) -> Result<String, String> {
+    Ok(model_path(&app, model.as_deref())
+        .to_string_lossy()
+        .into_owned())
 }
 
 #[tauri::command]
-fn get_model_status(app: tauri::AppHandle) -> ModelStatus {
-    model_status(&models_dir(&app))
+fn get_model_status(app: tauri::AppHandle, model: Option<String>) -> ModelStatus {
+    model_status_for_tier(&models_dir(&app), model.as_deref())
 }
 
 #[tauri::command]
@@ -271,6 +286,30 @@ fn start_model_download(app: tauri::AppHandle, model: String) -> Result<(), Stri
         match result {
             Ok(path) => {
                 let _ = handle.emit("model-download-complete", path.to_string_lossy().to_string());
+            }
+            Err(err) => {
+                let _ = handle.emit("model-download-error", err.to_string());
+            }
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn start_download_all_models(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = models_dir(&app);
+    let handle = app.clone();
+    thread::spawn(move || {
+        let result = download_all_starter_models(&dir, |progress| {
+            let _ = handle.emit("model-download-progress", progress);
+        });
+        match result {
+            Ok(paths) => {
+                let last = paths
+                    .last()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let _ = handle.emit("model-download-complete", last);
             }
             Err(err) => {
                 let _ = handle.emit("model-download-error", err.to_string());
@@ -522,6 +561,7 @@ fn start_transcription(
     title: Option<String>,
     language: Option<String>,
     source_url: Option<String>,
+    model: Option<String>,
 ) -> Result<(), String> {
     if state.recorder.lock().map_err(|e| e.to_string())?.is_some() {
         return Err("Stop recording before transcribing".into());
@@ -566,6 +606,7 @@ fn start_transcription(
             title,
             source_url,
             language_label,
+            model,
             cancel,
         );
 
@@ -599,6 +640,7 @@ fn start_url_import(
     url: String,
     use_gpu: bool,
     language: Option<String>,
+    model: Option<String>,
 ) -> Result<(), String> {
     if state.recorder.lock().map_err(|e| e.to_string())?.is_some() {
         return Err("Stop recording before importing a URL".into());
@@ -660,6 +702,7 @@ fn start_url_import(
                 download.title,
                 Some(download.source_url),
                 language_label,
+                model,
                 cancel,
             )
         })();
@@ -714,6 +757,7 @@ pub fn run() {
             open_models_folder,
             import_model_from_path,
             start_model_download,
+            start_download_all_models,
             get_compute_info,
             get_hardware_advice,
             get_app_about,

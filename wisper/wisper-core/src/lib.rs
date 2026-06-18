@@ -23,8 +23,9 @@ pub use hardware::{
     ModelRecommendation, SystemProfile,
 };
 pub use model::{
-    download_starter_model, import_model_file, model_status, resolve_model_path, ModelStatus,
-    StarterModel,
+    download_all_starter_models, download_starter_model, import_model_file, installed_model_keys,
+    is_model_file_valid, model_status, model_status_for_tier, resolve_model_path,
+    resolve_model_path_for_tier, ModelStatus, StarterModel,
 };
 pub use audio::save_mic_wav;
 pub use fetch::{download_url, normalize_url, resolve_yt_dlp, yt_dlp_status, DownloadProgress, UrlDownloadResult, YtDlpStatus};

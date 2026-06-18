@@ -12,6 +12,8 @@ pub enum StarterModel {
 }
 
 impl StarterModel {
+    pub const ALL: [Self; 3] = [Self::Tiny, Self::Base, Self::LargeTurbo];
+
     pub fn from_key(key: &str) -> Option<Self> {
         match key.trim().to_lowercase().as_str() {
             "tiny" | "small" => Some(Self::Tiny),
@@ -66,6 +68,27 @@ impl StarterModel {
             Self::LargeTurbo => "Large",
         }
     }
+
+    /// Minimum on-disk size for a valid GGML file (guards truncated/wrong downloads).
+    pub fn min_size_bytes(self) -> u64 {
+        match self {
+            Self::Tiny => 50_000_000,
+            Self::Base => 100_000_000,
+            Self::LargeTurbo => 500_000_000,
+        }
+    }
+}
+
+/// True when `path` exists and meets the minimum size for `model`.
+pub fn is_model_file_valid(path: &Path, model: StarterModel) -> bool {
+    model_file_valid(path, model)
+}
+
+fn model_file_valid(path: &Path, model: StarterModel) -> bool {
+    path.is_file()
+        && std::fs::metadata(path)
+            .map(|meta| meta.len() >= model.min_size_bytes())
+            .unwrap_or(false)
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -74,6 +97,16 @@ pub struct ModelStatus {
     pub models_dir: String,
     pub ready: bool,
     pub hint: String,
+    /// Download keys for tiers with a `.bin` present (`tiny`, `base`, `large-turbo`).
+    pub installed: Vec<String>,
+}
+
+/// Path for the requested tier, or legacy resolution when `tier_key` is absent.
+pub fn resolve_model_path_for_tier(models_dir: &Path, tier_key: Option<&str>) -> PathBuf {
+    if let Some(model) = tier_key.and_then(StarterModel::from_key) {
+        return models_dir.join(model.file_name());
+    }
+    resolve_model_path(models_dir)
 }
 
 /// Resolve the whisper model file under `models_dir`.
@@ -101,14 +134,31 @@ pub fn resolve_model_path(models_dir: &Path) -> PathBuf {
     preferred
 }
 
-/// Report whether a usable GGML model file exists under `models_dir`.
-pub fn model_status(models_dir: &Path) -> ModelStatus {
-    let path = resolve_model_path(models_dir);
+pub fn installed_model_keys(models_dir: &Path) -> Vec<String> {
+    StarterModel::ALL
+        .iter()
+        .filter(|model| model_file_valid(&models_dir.join(model.file_name()), **model))
+        .map(|model| model.download_key().to_string())
+        .collect()
+}
+
+/// Report whether the requested tier's GGML model exists under `models_dir`.
+pub fn model_status_for_tier(models_dir: &Path, tier_key: Option<&str>) -> ModelStatus {
+    let tier = tier_key
+        .and_then(StarterModel::from_key)
+        .unwrap_or(StarterModel::Base);
+    let path = models_dir.join(tier.file_name());
     let ready = path.is_file();
+    let installed = installed_model_keys(models_dir);
     let hint = if ready {
-        "Speech model is ready.".into()
-    } else {
+        format!("{} model is ready.", tier.tier_label())
+    } else if installed.is_empty() {
         "No speech model yet — open Get started to download one.".into()
+    } else {
+        format!(
+            "{} model not installed — download it or choose an installed size.",
+            tier.tier_label()
+        )
     };
 
     ModelStatus {
@@ -116,7 +166,13 @@ pub fn model_status(models_dir: &Path) -> ModelStatus {
         models_dir: models_dir.to_string_lossy().into_owned(),
         ready,
         hint,
+        installed,
     }
+}
+
+/// Report whether a usable GGML model file exists under `models_dir` (legacy: any single bin).
+pub fn model_status(models_dir: &Path) -> ModelStatus {
+    model_status_for_tier(models_dir, None)
 }
 
 /// Copy a user-selected `.bin` model into `models_dir`.
@@ -151,12 +207,19 @@ pub fn download_starter_model(
 
     std::fs::create_dir_all(models_dir).map_err(|e| WisperError::Fetch(e.to_string()))?;
     let dest = models_dir.join(model.file_name());
-    if dest.is_file() {
+    if model_file_valid(&dest, model) {
         on_progress(DownloadProgress {
             percent: Some(100),
             status: "Speech model already downloaded.".into(),
         });
         return Ok(dest);
+    }
+    if dest.is_file() {
+        let _ = std::fs::remove_file(&dest);
+        on_progress(DownloadProgress {
+            percent: None,
+            status: "Replacing incomplete or invalid model file…".into(),
+        });
     }
 
     let partial = dest.with_extension("part");
@@ -213,6 +276,21 @@ pub fn download_starter_model(
     Ok(dest)
 }
 
+/// Download every starter tier that is not already present under `models_dir`.
+pub fn download_all_starter_models(
+    models_dir: &Path,
+    mut on_progress: impl FnMut(DownloadProgress),
+) -> Result<Vec<PathBuf>, crate::WisperError> {
+    let mut downloaded = Vec::new();
+    for model in StarterModel::ALL {
+        let path = download_starter_model(models_dir, model, |progress| {
+            on_progress(progress);
+        })?;
+        downloaded.push(path);
+    }
+    Ok(downloaded)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,11 +311,31 @@ mod tests {
     }
 
     #[test]
+    fn model_status_for_tier_checks_specific_file() {
+        let dir = std::env::temp_dir().join(format!("wisper-model-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let bin = dir.join("ggml-base.en.bin");
+        // Pad past min_size_bytes for Base (100 MB)
+        let padding = vec![0u8; 100_000_001];
+        fs::write(&bin, &padding).unwrap();
+
+        let status = model_status_for_tier(&dir, Some("base"));
+        assert!(status.ready);
+        assert_eq!(status.installed, vec!["base"]);
+
+        let large = model_status_for_tier(&dir, Some("large-turbo"));
+        assert!(!large.ready);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn model_status_ready_when_bin_exists() {
         let dir = std::env::temp_dir().join(format!("wisper-model-test-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         let bin = dir.join("ggml-base.en.bin");
-        fs::write(&bin, b"fake").unwrap();
+        let padding = vec![0u8; 100_000_001];
+        fs::write(&bin, &padding).unwrap();
 
         let status = model_status(&dir);
         assert!(status.ready);

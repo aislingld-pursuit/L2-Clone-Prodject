@@ -6,7 +6,8 @@
 
 param(
     [ValidateSet("cuda", "vulkan", "cpu")]
-    [string]$Backend = "cuda"
+    [string]$Backend = "cuda",
+    [switch]$SkipModels
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +26,13 @@ if (-not $env:CARGO_TARGET_DIR) {
 
 Write-Host "Building Wisper release ($Backend)…" -ForegroundColor Cyan
 Write-Host "  CARGO_TARGET_DIR=$($env:CARGO_TARGET_DIR)"
+
+if (-not $SkipModels) {
+    Write-Host ""
+    Write-Host "Ensuring all speech models are present (~1.8 GB total)…" -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot "download-model.ps1") -All
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 npm run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -51,4 +59,8 @@ Get-ChildItem -Recurse $bundleRoot -Include *.msi, *.exe, *.dmg, *.deb, *.AppIma
     ForEach-Object { Write-Host "  $($_.FullName)" }
 
 Write-Host ""
-Write-Host "Models are not bundled — run scripts/download-model.ps1 on the target machine." -ForegroundColor Yellow
+if ($SkipModels) {
+    Write-Host "Models skipped — run scripts\download-model.ps1 -All on the target machine." -ForegroundColor Yellow
+} else {
+    Write-Host "All speech models are in app data — pick Small / Medium / Large in Advanced options." -ForegroundColor Green
+}

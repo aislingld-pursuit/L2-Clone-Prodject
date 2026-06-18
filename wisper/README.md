@@ -44,13 +44,21 @@ Cross-desktop: Windows, macOS, and Linux share the same Cargo features. See the 
 | `build-gpu.ps1 -Backend vulkan` | Windows | Build only |
 | `build-linux.sh vulkan` | Linux | Build only |
 
-## Whisper model
+## Whisper models
 
-Place a GGML model (e.g. `ggml-large-v3-turbo.bin`) in the app models folder — path shown in the UI, typically:
+Wisper supports three tiers — **Small** (`ggml-tiny.en.bin`, ~75 MB), **Medium** (`ggml-base.en.bin`, ~150 MB), and **Large** (`ggml-large-v3-turbo.bin`, ~1.6 GB). Pick the active tier in **Advanced options**; transcription uses that file.
+
+Models live in app data (path shown in the UI), typically:
 
 `%APPDATA%\com.aislingldpursuit.wisper\models\` on Windows.
 
-Download from [Hugging Face — whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp).
+**Download all tiers (recommended for dev and release builds):**
+
+```powershell
+.\scripts\download-model.ps1 -All
+```
+
+`build-release.ps1` runs this automatically unless you pass `-SkipModels`. You can also use **Download all models** in Advanced options inside the app.
 
 ## Project layout
 

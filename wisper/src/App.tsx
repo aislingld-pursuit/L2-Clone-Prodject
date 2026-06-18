@@ -8,6 +8,11 @@ import { GUIDE_COMPLETE_KEY, WelcomeGuide } from "./WelcomeGuide";
 
 const UPDATE_DISMISS_KEY = "wisper-update-dismissed";
 
+interface DownloadProgress {
+  percent: number | null;
+  status: string;
+}
+
 interface TranscriptSegment {
   start_ms: number;
   end_ms: number;
@@ -127,6 +132,7 @@ interface ModelStatus {
   models_dir: string;
   ready: boolean;
   hint: string;
+  installed: string[];
 }
 
 type ComputeChoice = "cpu" | "gpu";
@@ -271,6 +277,10 @@ function App() {
   );
   const [language, setLanguage] = useState("auto");
   const [urlInput, setUrlInput] = useState("");
+  const [modelDownloading, setModelDownloading] = useState(false);
+  const [modelDownloadProgress, setModelDownloadProgress] = useState<DownloadProgress | null>(
+    null,
+  );
   const [ytDlpStatus, setYtDlpStatus] = useState<YtDlpStatus | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(
     null,
@@ -289,13 +299,13 @@ function App() {
 
   const refreshModelStatus = useCallback(async () => {
     try {
-      const status = await invoke<ModelStatus>("get_model_status");
+      const status = await invoke<ModelStatus>("get_model_status", { model: modelTier });
       setModelStatus(status);
       setModelPath(status.path);
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [modelTier]);
 
   const refreshUpdateCheck = useCallback(async () => {
     setUpdateChecking(true);
@@ -353,6 +363,29 @@ function App() {
     refreshLibrary();
     void refreshUpdateCheck();
   }, [refreshLibrary, refreshModelStatus, refreshUpdateCheck]);
+
+  useEffect(() => {
+    const unlistenProgress = listen<DownloadProgress>("model-download-progress", (event) => {
+      setModelDownloading(true);
+      setModelDownloadProgress(event.payload);
+    });
+    const unlistenComplete = listen<string>("model-download-complete", () => {
+      setModelDownloading(false);
+      setModelDownloadProgress(null);
+      void refreshModelStatus();
+    });
+    const unlistenError = listen<string>("model-download-error", (event) => {
+      setModelDownloading(false);
+      setModelDownloadProgress(null);
+      setError(event.payload);
+    });
+
+    return () => {
+      void unlistenProgress.then((fn) => fn());
+      void unlistenComplete.then((fn) => fn());
+      void unlistenError.then((fn) => fn());
+    };
+  }, [refreshModelStatus]);
 
   useEffect(() => {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -611,6 +644,32 @@ function App() {
     localStorage.setItem(MODEL_TIER_STORAGE_KEY, key);
   }
 
+  async function downloadSelectedModel() {
+    setError(null);
+    setModelDownloading(true);
+    setModelDownloadProgress({ percent: null, status: "Starting download…" });
+    try {
+      await invoke("start_model_download", { model: modelTier });
+    } catch (e) {
+      setModelDownloading(false);
+      setModelDownloadProgress(null);
+      setError(String(e));
+    }
+  }
+
+  async function downloadAllModels() {
+    setError(null);
+    setModelDownloading(true);
+    setModelDownloadProgress({ percent: null, status: "Downloading all speech models…" });
+    try {
+      await invoke("start_download_all_models");
+    } catch (e) {
+      setModelDownloading(false);
+      setModelDownloadProgress(null);
+      setError(String(e));
+    }
+  }
+
   function openWelcomeGuide() {
     setShowWelcome(true);
   }
@@ -693,6 +752,7 @@ function App() {
         title: options?.title,
         language,
         sourceUrl: options?.sourceUrl,
+        model: modelTier,
       });
     } catch (e) {
       setBusy(false);
@@ -727,6 +787,7 @@ function App() {
         url: trimmed,
         useGpu: computeBackend === "gpu",
         language,
+        model: modelTier,
       });
     } catch (e) {
       setBusy(false);
@@ -864,6 +925,13 @@ function App() {
 
   const gpuLabel = computeInfo?.gpu_backend ?? "GPU";
   const modelMissing = modelStatus !== null && !modelStatus.ready;
+  const installedModelLabels = MODEL_TIERS.filter((tier) =>
+    modelStatus?.installed?.includes(tier.key),
+  )
+    .map((tier) => tier.label)
+    .join(", ");
+  const allModelsInstalled =
+    modelStatus?.installed?.length === MODEL_TIERS.length;
   const updateReleaseUrl =
     updateInfo?.download_url ?? updateInfo?.release_url ?? null;
   const showUpdateBanner =
@@ -1380,25 +1448,55 @@ function App() {
               className="language-select"
               value={modelTier}
               onChange={(e) => selectModelTier(e.target.value)}
-              disabled={busy || isRecording || downloading}
+              disabled={busy || isRecording || modelDownloading}
             >
               {MODEL_TIERS.map((tier) => (
                 <option key={tier.key} value={tier.key}>
                   {tier.label} ({tier.size})
+                  {modelStatus?.installed?.includes(tier.key) ? " ✓" : ""}
                 </option>
               ))}
             </select>
             <p className="hint">
-              Small is fastest on older hardware; Large is best quality. Change before
-              downloading in Get started.
+              Transcription uses the selected size. Install each tier once; switch anytime.
             </p>
             {modelStatus?.ready ? (
-              <p className="model-ready">Installed and ready</p>
+              <p className="model-ready">{modelStatus.hint}</p>
             ) : (
-              <p className="model-missing">Not installed</p>
+              <p className="model-missing">{modelStatus?.hint ?? "Checking model…"}</p>
+            )}
+            {installedModelLabels && (
+              <p className="hint">Installed: {installedModelLabels}</p>
+            )}
+            {modelDownloading && modelDownloadProgress && (
+              <p className="hint" aria-live="polite">
+                {modelDownloadProgress.status}
+                {modelDownloadProgress.percent != null
+                  ? ` (${modelDownloadProgress.percent}%)`
+                  : ""}
+              </p>
             )}
             <p className="model-path">{modelPath || "Loading…"}</p>
             <div className="guide-actions">
+              {!modelStatus?.ready && (
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void downloadSelectedModel()}
+                  disabled={modelDownloading || busy || isRecording}
+                >
+                  Download selected model
+                </button>
+              )}
+              {!allModelsInstalled && (
+                <button
+                  type="button"
+                  onClick={() => void downloadAllModels()}
+                  disabled={modelDownloading || busy || isRecording}
+                >
+                  Download all models
+                </button>
+              )}
               <button type="button" onClick={openWelcomeGuide}>
                 Open setup guide
               </button>
