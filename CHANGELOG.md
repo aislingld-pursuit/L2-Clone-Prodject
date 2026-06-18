@@ -80,7 +80,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Escape** closes Advanced options; confirms before discarding a non-empty URL import field.
 - **phase1-exit-qa.ps1** — manual checklist extended for Week 2 HEART UX (beta.19 features).
 
-## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.20...HEAD)
+## [0.2.0-beta.21](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.20...v0.2.0-beta.21) - 2026-06-18
+
+### Added
+
+- **All three model tiers** — Small (`tiny`), Medium (`base`), and Large (`large-turbo`) can be installed side by side; transcription uses the tier selected in Advanced options.
+- **Download all models** — in-app and `download-model.ps1 -All` fetch every tier; release builds run `-All` by default (`-SkipModels` to opt out).
+- **Model size validation** — truncated or wrong `.bin` files are detected and re-downloaded (fixes mis-sized Large files).
+
+### Changed
+
+- `get_model_status`, transcription, and URL import accept an optional `model` tier key.
+- Advanced options show installed tiers and per-tier download actions.
+
+## [Unreleased](https://github.com/aislingld-pursuit/L2-Clone-Prodject/compare/v0.2.0-beta.21...HEAD)
 
 ### Removed from scope
 

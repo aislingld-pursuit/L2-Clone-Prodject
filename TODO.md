@@ -1,4 +1,4 @@
-# Wisper — TODO (beta.20 feature gates)
+# Wisper — TODO (beta.21 feature gates)
 
 Last updated: 2026-06-18  
 **Branch:** `Jimmy-Contributions`  
@@ -55,6 +55,17 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 
 ---
 
+## Slice D — beta.21 (multi-model)
+
+- [x] Tier-aware transcription and model status (`resolve_model_path_for_tier`)
+- [x] Download selected / download all models (UI + `start_download_all_models`)
+- [x] `download-model.ps1 -All` + `build-release.ps1` default fetch all tiers
+- [x] Minimum file-size validation (reject wrong/truncated `.bin`)
+- [x] Bump version → **0.2.0-beta.21** + CHANGELOG  
+- [x] Tag `v0.2.0-beta.21` + Release CI  
+
+---
+
 ## Tier 3 — Manual QA (after beta.19)
 
 - Welcome guide → system check → recommended model → download → transcribe  
@@ -62,6 +73,7 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 - Remember-open Advanced persists across restart  
 - Jimmy Intel Mac DMG smoke  
 - Windows CUDA smoke  
+- [x] All three model tiers installed and selectable (beta.21)
 
 ---
 
