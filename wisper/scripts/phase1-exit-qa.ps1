@@ -118,6 +118,15 @@ Launch: cd wisper; .\dev-cuda.ps1  (or use -Launch on this script)
 9. GPU fallback (if testable)
    - Amber banner + CPU completion if GPU path fails
 
+10. Week 2 beta.19 — HEART UX (Jimmy-Contributions)
+   - Privacy subtitle under Transcribe audio panel
+   - Advanced options (not Advanced settings); aria-expanded on toggle
+   - Escape closes Advanced; confirms if URL field has text
+   - Remember-open checkbox persists Advanced across restart
+   - Welcome: Check your system → model recommendation → tier download
+   - Model-missing banner + Get started when no .bin installed
+   - Video file (MP4/MKV): inline hint only — no size cap, proceed allowed
+
 "@ -ForegroundColor White
 
 if ($Launch) {
