@@ -11,6 +11,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 $core = Join-Path $root "wisper-core"
 
+. (Join-Path $PSScriptRoot "_set-cargo-target.ps1")
+
 function Write-Step($msg) {
     Write-Host "`n==> $msg" -ForegroundColor Cyan
 }

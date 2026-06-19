@@ -5,6 +5,8 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
 
+. (Join-Path $PSScriptRoot "_set-cargo-target.ps1")
+
 Write-Host "`n==> wisper-core unit tests" -ForegroundColor Cyan
 Push-Location wisper-core
 try {

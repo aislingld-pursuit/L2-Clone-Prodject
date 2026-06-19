@@ -1,10 +1,10 @@
 # Wisper — Roadmap
 
-Last updated: 2026-06-17 (`Jimmy-Contributions` / beta.19)
+Last updated: 2026-06-19 (`Jimmy-Contributions` / beta.21)
 
 ## Current phase
 
-**HEART-guided Week 2 UX → beta.19–20** on branch `Jimmy-Contributions`. Baseline: **v0.2.0-beta.18** on `master`.
+**Tier 3 partner QA → merge to `master`** on branch `Jimmy-Contributions`. Latest tag: **v0.2.0-beta.21**.
 
 | Milestone | Status |
 |-----------|--------|
@@ -12,11 +12,14 @@ Last updated: 2026-06-17 (`Jimmy-Contributions` / beta.19)
 | Phase 1 import flows | Done |
 | Phase 2 library minimum | Done |
 | SEC-001 / SEC-002 | Done |
-| beta.15 welcome guide + model download | **Done** |
-| beta.17–18 update checks | **Done** |
-| Week 2 reconciliation docs | **Done** — `docs/Aisling-corrections.md` |
-| beta.19 HEART UI (model tier, hardware advisor) | **In progress** |
-| beta.20 a11y + format hints | Planned |
+| beta.15 welcome guide + model download | Done |
+| beta.17–18 update checks | Done |
+| Week 2 reconciliation docs | Done — `docs/Aisling-corrections.md` |
+| beta.19 HEART UI (model tier, hardware advisor) | Done |
+| beta.20 a11y + format hints | Done |
+| beta.21 multi-model (all tiers + download-all) | Done |
+| Tier 3 partner QA + sign-off | **Done** — `docs/TIER3-SIGNOFF.md` (2026-06-19) |
+| Merge `Jimmy-Contributions` → `master` | **Done** — beta.21 on `master` |
 
 **Authoritative plan:** [docs/Aisling-corrections.md](./docs/Aisling-corrections.md)  
 **PRD status map:** [docs/Week2-PRD-STATUS.md](./docs/Week2-PRD-STATUS.md)
@@ -51,9 +54,9 @@ Per [HEART framework](https://www.heartframework.com/) — prioritize **Task Suc
 
 ## Release pipeline
 
-**Latest:** [v0.2.0-beta.18](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.18)
+**Latest:** [v0.2.0-beta.21](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.21)
 
-**Next tag:** `v0.2.0-beta.19` after Slice B + smoke tests green.
+**Next tag:** After Tier 3 sign-off and merge to `master` (beta.22+ only if partner feedback requires it).
 
 ## Deferred (post beta.20)
 
