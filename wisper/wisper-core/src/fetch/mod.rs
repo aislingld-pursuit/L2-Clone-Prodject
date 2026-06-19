@@ -141,8 +141,113 @@ pub fn resolve_yt_dlp(extra_candidates: &[PathBuf]) -> Result<PathBuf, WisperErr
     }
 
     Err(WisperError::Fetch(
-        "yt-dlp not found. Install it (e.g. winget install yt-dlp) and restart Wisper.".into(),
+        "yt-dlp not found. Install it from Advanced options in Wisper, or add yt-dlp to your PATH.".into(),
     ))
+}
+
+pub fn yt_dlp_install_filename() -> &'static str {
+    if cfg!(windows) {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    }
+}
+
+pub fn yt_dlp_release_download_url() -> &'static str {
+    if cfg!(windows) {
+        "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+    } else if cfg!(target_os = "macos") {
+        "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+    } else {
+        "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
+    }
+}
+
+/// Download the official yt-dlp release binary into `bin_dir` (e.g. app data `bin/`).
+pub fn download_yt_dlp(
+    bin_dir: &Path,
+    mut on_progress: impl FnMut(DownloadProgress),
+) -> Result<PathBuf, WisperError> {
+    use std::io::{Read, Write};
+
+    std::fs::create_dir_all(bin_dir).map_err(|e| WisperError::Fetch(e.to_string()))?;
+    let dest = bin_dir.join(yt_dlp_install_filename());
+    if dest.is_file() {
+        if let Ok(meta) = std::fs::metadata(&dest) {
+            if meta.len() > 100_000 {
+                on_progress(DownloadProgress {
+                    percent: Some(100),
+                    status: "yt-dlp already installed.".into(),
+                });
+                return Ok(dest);
+            }
+        }
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    let partial = dest.with_extension("part");
+    if partial.exists() {
+        let _ = std::fs::remove_file(&partial);
+    }
+
+    on_progress(DownloadProgress {
+        percent: Some(0),
+        status: "Connecting to GitHub…".into(),
+    });
+
+    let response = ureq::get(yt_dlp_release_download_url())
+        .call()
+        .map_err(|e| WisperError::Fetch(e.to_string()))?;
+
+    let total = response
+        .header("Content-Length")
+        .and_then(|value| value.parse::<u64>().ok());
+
+    let mut reader = response.into_reader();
+    let mut file =
+        std::fs::File::create(&partial).map_err(|e| WisperError::Fetch(e.to_string()))?;
+    let mut downloaded: u64 = 0;
+    let mut buffer = [0u8; 64 * 1024];
+
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|e| WisperError::Fetch(e.to_string()))?;
+        if read == 0 {
+            break;
+        }
+        file.write_all(&buffer[..read])
+            .map_err(|e| WisperError::Fetch(e.to_string()))?;
+        downloaded += read as u64;
+        let percent = total.map(|size| ((downloaded.saturating_mul(100)) / size.max(1)) as i32);
+        let mb = downloaded / 1_000_000;
+        on_progress(DownloadProgress {
+            percent,
+            status: format!("Downloading yt-dlp… {mb} MB"),
+        });
+    }
+
+    file.flush()
+        .map_err(|e| WisperError::Fetch(e.to_string()))?;
+    drop(file);
+
+    std::fs::rename(&partial, &dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&dest)
+            .map_err(|e| WisperError::Fetch(e.to_string()))?
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&dest, perms).map_err(|e| WisperError::Fetch(e.to_string()))?;
+    }
+
+    on_progress(DownloadProgress {
+        percent: Some(100),
+        status: "yt-dlp install complete.".into(),
+    });
+    Ok(dest)
 }
 
 pub fn yt_dlp_status(extra_candidates: &[PathBuf]) -> YtDlpStatus {
@@ -155,7 +260,7 @@ pub fn yt_dlp_status(extra_candidates: &[PathBuf]) -> YtDlpStatus {
         Err(_) => YtDlpStatus {
             available: false,
             path: None,
-            hint: "Install yt-dlp to import from YouTube and other sites: winget install yt-dlp"
+            hint: "Install yt-dlp from Advanced options (one-time download), or add yt-dlp to your PATH."
                 .into(),
         },
     }
@@ -371,6 +476,21 @@ mod tests {
     fn normalize_url_accepts_public_http_urls() {
         let url = normalize_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ").expect("public url");
         assert!(url.starts_with("https://www.youtube.com/"));
+    }
+
+    #[test]
+    fn yt_dlp_install_filename_matches_platform() {
+        let name = yt_dlp_install_filename();
+        #[cfg(windows)]
+        assert_eq!(name, "yt-dlp.exe");
+        #[cfg(not(windows))]
+        assert_eq!(name, "yt-dlp");
+    }
+
+    #[test]
+    fn yt_dlp_release_url_is_https_github() {
+        let url = yt_dlp_release_download_url();
+        assert!(url.starts_with("https://github.com/yt-dlp/yt-dlp/releases/latest/download/"));
     }
 
     #[test]

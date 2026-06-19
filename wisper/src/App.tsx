@@ -282,6 +282,10 @@ function App() {
     null,
   );
   const [ytDlpStatus, setYtDlpStatus] = useState<YtDlpStatus | null>(null);
+  const [ytDlpInstalling, setYtDlpInstalling] = useState(false);
+  const [ytDlpInstallProgress, setYtDlpInstallProgress] = useState<DownloadProgress | null>(
+    null,
+  );
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(
     null,
   );
@@ -306,6 +310,15 @@ function App() {
       setError(String(e));
     }
   }, [modelTier]);
+
+  const refreshYtDlpStatus = useCallback(async () => {
+    try {
+      const status = await invoke<YtDlpStatus>("get_yt_dlp_status");
+      setYtDlpStatus(status);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
 
   const refreshUpdateCheck = useCallback(async () => {
     setUpdateChecking(true);
@@ -397,6 +410,30 @@ function App() {
       .then(setYtDlpStatus)
       .catch((e) => setError(String(e)));
   }, []);
+
+  useEffect(() => {
+    const unlistenProgress = listen<DownloadProgress>("yt-dlp-install-progress", (event) => {
+      setYtDlpInstalling(true);
+      setYtDlpInstallProgress(event.payload);
+    });
+    const unlistenComplete = listen<string>("yt-dlp-install-complete", () => {
+      setYtDlpInstalling(false);
+      setYtDlpInstallProgress(null);
+      void refreshYtDlpStatus();
+      setStatus("yt-dlp is ready for URL imports.");
+    });
+    const unlistenError = listen<string>("yt-dlp-install-error", (event) => {
+      setYtDlpInstalling(false);
+      setYtDlpInstallProgress(null);
+      setError(event.payload);
+    });
+
+    return () => {
+      void unlistenProgress.then((fn) => fn());
+      void unlistenComplete.then((fn) => fn());
+      void unlistenError.then((fn) => fn());
+    };
+  }, [refreshYtDlpStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -761,6 +798,19 @@ function App() {
     }
   }
 
+  async function installYtDlp() {
+    setError(null);
+    setYtDlpInstalling(true);
+    setYtDlpInstallProgress({ percent: 0, status: "Starting download…" });
+    try {
+      await invoke("start_yt_dlp_install");
+    } catch (e) {
+      setYtDlpInstalling(false);
+      setYtDlpInstallProgress(null);
+      setError(String(e));
+    }
+  }
+
   async function importUrlAndTranscribe() {
     const trimmed = urlInput.trim();
     if (!trimmed) {
@@ -882,20 +932,36 @@ function App() {
   }
 
   async function exportTranscriptTxt() {
+    await exportTranscriptFile("txt", "export_transcript_txt", "save_transcript_txt_file");
+  }
+
+  async function exportTranscriptSrt() {
+    await exportTranscriptFile("srt", "export_transcript_srt", "save_transcript_srt_file");
+  }
+
+  async function exportTranscriptVtt() {
+    await exportTranscriptFile("vtt", "export_transcript_vtt", "save_transcript_vtt_file");
+  }
+
+  async function exportTranscriptFile(
+    ext: "txt" | "srt" | "vtt",
+    exportCommand: string,
+    saveCommand: string,
+  ) {
     if (!recordingId) return;
     setError(null);
     try {
-      const text = await invoke<string>("export_transcript_txt", { recordingId });
-      const path = await invoke<string | null>("save_transcript_txt_file", {
+      const text = await invoke<string>(exportCommand, { recordingId });
+      const path = await invoke<string | null>(saveCommand, {
         contents: text,
-        defaultFilename: `${safeExportFilename(activeTitle ?? "transcript")}.txt`,
+        defaultFilename: `${safeExportFilename(activeTitle ?? "transcript")}.${ext}`,
       });
       if (path) {
         setStatus(`Exported ${path.split(/[/\\]/).pop()}.`);
       }
     } catch (e) {
       setError(String(e));
-      setStatus("Could not export transcript.");
+      setStatus(`Could not export ${ext.toUpperCase()}.`);
     }
   }
 
@@ -1247,15 +1313,43 @@ function App() {
                 Download & transcribe
               </button>
             </div>
-            {ytDlpStatus && (
-              <p className={`hint${ytDlpStatus.available ? "" : " warn"}`}>
-                {ytDlpStatus.hint}
-              </p>
+            {ytDlpStatus && ytDlpStatus.available && (
+              <p className="hint">{ytDlpStatus.hint}</p>
             )}
             {!ytDlpStatus?.available && (
-              <p className="hint disabled-hint">
-                URL import needs yt-dlp installed on your system.
-              </p>
+              <div className="ytdlp-banner">
+                <p className="hint warn">
+                  {ytDlpStatus?.hint ??
+                    "URL import needs yt-dlp. Install it once below, or add yt-dlp to your PATH."}
+                </p>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={installYtDlp}
+                  disabled={busy || isRecording || ytDlpInstalling}
+                >
+                  {ytDlpInstalling ? "Installing yt-dlp…" : "Install yt-dlp"}
+                </button>
+                {ytDlpInstalling && ytDlpInstallProgress && (
+                  <div className="ytdlp-progress" aria-live="polite">
+                    <div
+                      className="progress-track"
+                      role="progressbar"
+                      aria-valuenow={ytDlpInstallProgress.percent ?? 2}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="progress-fill download"
+                        style={{
+                          width: `${Math.max(ytDlpInstallProgress.percent ?? 2, 2)}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="progress-meta">{ytDlpInstallProgress.status}</p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1565,6 +1659,12 @@ function App() {
                 </button>
                 <button type="button" onClick={exportTranscriptTxt} disabled={busy}>
                   Export TXT
+                </button>
+                <button type="button" onClick={exportTranscriptSrt} disabled={busy}>
+                  Export SRT
+                </button>
+                <button type="button" onClick={exportTranscriptVtt} disabled={busy}>
+                  Export VTT
                 </button>
                 <button
                   type="button"

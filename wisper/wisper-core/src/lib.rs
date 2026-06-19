@@ -17,7 +17,7 @@ pub use compute::{
 };
 pub use engine::WhisperEngine;
 pub use error::WisperError;
-pub use export::format_transcript_txt;
+pub use export::{format_transcript_srt, format_transcript_txt, format_transcript_vtt};
 pub use hardware::{
     get_system_profile, recommend_model, run_compute_benchmark, BenchmarkResult,
     ModelRecommendation, SystemProfile,
@@ -28,7 +28,10 @@ pub use model::{
     resolve_model_path_for_tier, ModelStatus, StarterModel,
 };
 pub use audio::save_mic_wav;
-pub use fetch::{download_url, normalize_url, resolve_yt_dlp, yt_dlp_status, DownloadProgress, UrlDownloadResult, YtDlpStatus};
+pub use fetch::{
+    download_url, download_yt_dlp, normalize_url, resolve_yt_dlp, yt_dlp_install_filename,
+    yt_dlp_release_download_url, yt_dlp_status, DownloadProgress, UrlDownloadResult, YtDlpStatus,
+};
 pub use storage::{RecordingSource, RecordingSummary, Storage};
 pub use transcribe::{
     transcribe_file, transcribe_with_engine, GpuFallbackNotice, TranscribeOptions,

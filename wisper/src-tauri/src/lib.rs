@@ -12,10 +12,11 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 use wisper_core::{
-    app_about, compute_info, download_starter_model, download_url, format_transcript_txt,
+    app_about, compute_info, download_starter_model, download_url, format_transcript_srt,
+    format_transcript_txt, format_transcript_vtt,
     get_system_profile, import_model_file, model_status_for_tier, recommend_model,
     resolve_model_path_for_tier, resolve_yt_dlp, run_compute_benchmark, transcribe_with_engine,
-    download_all_starter_models, yt_dlp_status, AppAbout,
+    download_all_starter_models, download_yt_dlp, yt_dlp_status, AppAbout,
     BenchmarkResult, ComputeBackend, ComputeInfo, DownloadProgress, ModelRecommendation,
     ModelStatus, StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage,
     is_model_file_valid,
@@ -40,6 +41,10 @@ fn app_data_dir(app: &tauri::AppHandle) -> PathBuf {
 
 fn models_dir(app: &tauri::AppHandle) -> PathBuf {
     app_data_dir(app).join("models")
+}
+
+fn yt_dlp_bin_dir(app: &tauri::AppHandle) -> PathBuf {
+    app_data_dir(app).join("bin")
 }
 
 fn audio_dir(app: &tauri::AppHandle) -> PathBuf {
@@ -432,26 +437,64 @@ fn export_transcript_txt(
     state: tauri::State<'_, AppState>,
     recording_id: String,
 ) -> Result<String, String> {
+    export_transcript_for_format(state, recording_id, ExportFormat::Txt)
+}
+
+#[tauri::command]
+fn export_transcript_srt(
+    state: tauri::State<'_, AppState>,
+    recording_id: String,
+) -> Result<String, String> {
+    export_transcript_for_format(state, recording_id, ExportFormat::Srt)
+}
+
+#[tauri::command]
+fn export_transcript_vtt(
+    state: tauri::State<'_, AppState>,
+    recording_id: String,
+) -> Result<String, String> {
+    export_transcript_for_format(state, recording_id, ExportFormat::Vtt)
+}
+
+enum ExportFormat {
+    Txt,
+    Srt,
+    Vtt,
+}
+
+fn export_transcript_for_format(
+    state: tauri::State<'_, AppState>,
+    recording_id: String,
+    format: ExportFormat,
+) -> Result<String, String> {
     let storage = state.storage.lock().map_err(|e| e.to_string())?;
     let segments = storage
         .get_segments(&recording_id)
         .map_err(|e| e.to_string())?;
-    Ok(format_transcript_txt(&segments))
+    Ok(match format {
+        ExportFormat::Txt => format_transcript_txt(&segments),
+        ExportFormat::Srt => format_transcript_srt(&segments),
+        ExportFormat::Vtt => format_transcript_vtt(&segments),
+    })
 }
 
-#[tauri::command]
-async fn save_transcript_txt_file(
+fn save_transcript_with_dialog(
     app: tauri::AppHandle,
     contents: String,
     default_filename: String,
+    title: &str,
+    filter_label: &str,
+    extensions: &[&str],
 ) -> Result<Option<String>, String> {
-    let picked = app
+    let mut dialog = app
         .dialog()
         .file()
-        .set_title("Export transcript")
-        .set_file_name(default_filename)
-        .add_filter("Text", &["txt"])
-        .blocking_save_file();
+        .set_title(title)
+        .set_file_name(default_filename);
+    for ext in extensions {
+        dialog = dialog.add_filter(filter_label, &[ext]);
+    }
+    let picked = dialog.blocking_save_file();
 
     let Some(picked) = picked else {
         return Ok(None);
@@ -462,6 +505,54 @@ async fn save_transcript_txt_file(
         .map_err(|e| format!("invalid save path: {e}"))?;
     std::fs::write(&path, contents).map_err(|e| e.to_string())?;
     Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+async fn save_transcript_txt_file(
+    app: tauri::AppHandle,
+    contents: String,
+    default_filename: String,
+) -> Result<Option<String>, String> {
+    save_transcript_with_dialog(
+        app,
+        contents,
+        default_filename,
+        "Export transcript",
+        "Text",
+        &["txt"],
+    )
+}
+
+#[tauri::command]
+async fn save_transcript_srt_file(
+    app: tauri::AppHandle,
+    contents: String,
+    default_filename: String,
+) -> Result<Option<String>, String> {
+    save_transcript_with_dialog(
+        app,
+        contents,
+        default_filename,
+        "Export subtitles (SRT)",
+        "SubRip",
+        &["srt"],
+    )
+}
+
+#[tauri::command]
+async fn save_transcript_vtt_file(
+    app: tauri::AppHandle,
+    contents: String,
+    default_filename: String,
+) -> Result<Option<String>, String> {
+    save_transcript_with_dialog(
+        app,
+        contents,
+        default_filename,
+        "Export subtitles (WebVTT)",
+        "WebVTT",
+        &["vtt"],
+    )
 }
 
 #[tauri::command]
@@ -549,6 +640,29 @@ fn get_recording_status(
 #[tauri::command]
 fn get_yt_dlp_status(app: tauri::AppHandle) -> YtDlpStatus {
     yt_dlp_status(&yt_dlp_candidates(&app))
+}
+
+#[tauri::command]
+fn start_yt_dlp_install(app: tauri::AppHandle) -> Result<(), String> {
+    let bin_dir = yt_dlp_bin_dir(&app);
+    let handle = app.clone();
+    thread::spawn(move || {
+        let result = download_yt_dlp(&bin_dir, |progress| {
+            let _ = handle.emit("yt-dlp-install-progress", progress);
+        });
+        match result {
+            Ok(path) => {
+                let _ = handle.emit(
+                    "yt-dlp-install-complete",
+                    path.to_string_lossy().into_owned(),
+                );
+            }
+            Err(err) => {
+                let _ = handle.emit("yt-dlp-install-error", err.to_string());
+            }
+        }
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -740,6 +854,7 @@ pub fn run() {
         .setup(|app| {
             std::fs::create_dir_all(models_dir(app.handle())).ok();
             std::fs::create_dir_all(audio_dir(app.handle())).ok();
+            std::fs::create_dir_all(yt_dlp_bin_dir(app.handle())).ok();
             let storage = Storage::open(&db_path(app.handle())).map_err(|e| e.to_string())?;
             app.manage(AppState {
                 storage: Mutex::new(storage),
@@ -769,11 +884,16 @@ pub fn run() {
             search_library,
             delete_recording,
             export_transcript_txt,
+            export_transcript_srt,
+            export_transcript_vtt,
             save_transcript_txt_file,
+            save_transcript_srt_file,
+            save_transcript_vtt_file,
             start_recording,
             stop_recording,
             get_recording_status,
             get_yt_dlp_status,
+            start_yt_dlp_install,
             start_transcription,
             start_url_import,
             cancel_transcription

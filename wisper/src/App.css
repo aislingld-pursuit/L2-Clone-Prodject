@@ -616,6 +616,17 @@ button.primary:disabled.disabled-muted {
   border-top: 1px solid #2a2f3a;
 }
 
+.ytdlp-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.ytdlp-progress {
+  margin-top: 0.25rem;
+}
+
 .url-row {
   display: flex;
   flex-wrap: wrap;
@@ -813,6 +824,9 @@ button.primary:disabled.disabled-muted {
 
 .transcript-actions {
   margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .library-search {

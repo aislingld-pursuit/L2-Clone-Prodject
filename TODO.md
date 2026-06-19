@@ -75,7 +75,36 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 
 ---
 
-## Explicitly out of scope
+## Slice E — beta.22 (SRT / WebVTT export)
+
+**Scope doc:** `docs/SLICE-E-F-SCOPE.md`
+
+- **E1** — `format_transcript_srt` + `format_transcript_vtt` in `wisper-core/src/export/` ✅
+- **E2** — Unit tests (timestamps, UTF-8, empty segments) ✅
+- **E3** — Tauri export + save-file commands (mirror TXT) ✅
+- **E4** — UI: Export SRT / Export VTT on transcript panel ✅
+- **E5** — Bump version → **0.2.0-beta.22** + CHANGELOG + tag + Release CI (version/CHANGELOG done; tag/CI when ready to ship)
+
+**Out of scope:** batch/zip export, Word/PDF/JSON, burn-in subs, speaker labels, word-level timing, cloud upload.
+
+---
+
+## Slice F — beta.23 (yt-dlp in-app installer)
+
+**Scope doc:** `docs/SLICE-E-F-SCOPE.md`
+
+- **F1** — Download yt-dlp to `app_data_dir()/bin/` (model-download pattern) ✅
+- **F2** — Progress events + `start_yt_dlp_install` + `get_yt_dlp_status` ✅
+- **F3** — Welcome guide + URL import install CTA when missing ✅
+- **F4** — Install button in Advanced URL import panel ✅
+- **F5** — Platform binaries: Win x64, Mac (`yt-dlp_macos`), Linux x64 ✅
+- **F6** — Bump version → **0.2.0-beta.23** + CHANGELOG (tag/CI when ready to ship)
+
+**Out of scope:** bundle in installer, auto-update on launch, ffmpeg installer, cookies/auth, playlist UI, quality picker, proxy config.
+
+---
+
+## Explicitly out of scope (all slices)
 
 - File size limits (upload, URL, recording, model)  
 - Jimmy 13-event analytics suite  

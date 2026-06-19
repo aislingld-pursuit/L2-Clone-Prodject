@@ -1,25 +1,20 @@
 # Wisper — Roadmap
 
-Last updated: 2026-06-19 (`Jimmy-Contributions` / beta.21)
+Last updated: 2026-06-19 (`master` / beta.21 shipped; E+F scoped)
 
 ## Current phase
 
-**Tier 3 partner QA → merge to `master`** on branch `Jimmy-Contributions`. Latest tag: **v0.2.0-beta.21**.
+**Active user feedback → Slice E & F** on `master`. Latest tag: **v0.2.0-beta.21**.
 
 | Milestone | Status |
 |-----------|--------|
 | Phase 0.5 GPU foundation | Done |
 | Phase 1 import flows | Done |
 | Phase 2 library minimum | Done |
-| SEC-001 / SEC-002 | Done |
-| beta.15 welcome guide + model download | Done |
-| beta.17–18 update checks | Done |
-| Week 2 reconciliation docs | Done — `docs/Aisling-corrections.md` |
-| beta.19 HEART UI (model tier, hardware advisor) | Done |
-| beta.20 a11y + format hints | Done |
-| beta.21 multi-model (all tiers + download-all) | Done |
-| Tier 3 partner QA + sign-off | **Done** — `docs/TIER3-SIGNOFF.md` (2026-06-19) |
-| Merge `Jimmy-Contributions` → `master` | **Done** — beta.21 on `master` |
+| beta.19–21 (HEART UI, a11y, multi-model) | Done |
+| Tier 3 partner QA + merge to `master` | Done (2026-06-19) |
+| **Slice E — SRT/VTT export → beta.22** | **Next** |
+| **Slice F — yt-dlp in-app installer → beta.23** | Planned |
 
 **Authoritative plan:** [docs/Aisling-corrections.md](./docs/Aisling-corrections.md)  
 **PRD status map:** [docs/Week2-PRD-STATUS.md](./docs/Week2-PRD-STATUS.md)
@@ -56,12 +51,20 @@ Per [HEART framework](https://www.heartframework.com/) — prioritize **Task Suc
 
 **Latest:** [v0.2.0-beta.21](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.21)
 
-**Next tag:** After Tier 3 sign-off and merge to `master` (beta.22+ only if partner feedback requires it).
+**Next tags:** `v0.2.0-beta.22` (SRT/VTT export), then `v0.2.0-beta.23` (yt-dlp installer).  
+**Full scope:** [docs/SLICE-E-F-SCOPE.md](./docs/SLICE-E-F-SCOPE.md)
 
-## Deferred (post beta.20)
+## beta.22 — Slice E (SRT / WebVTT export)
+
+Export edited transcript segments as standard subtitle files for video editors and players. TXT export unchanged.
+
+## beta.23 — Slice F (yt-dlp in-app installer)
+
+One-click download of official yt-dlp into app data so URL import works without winget/Homebrew.
+
+## Deferred (post beta.23)
 
 - Pin Advanced Option C (Tauri prefs + pin icon)  
 - Full analytics / PostHog  
-- yt-dlp in-app installer  
 - EmptyStateHero refactor  
-- SRT/VTT export  
+- Batch export / burn-in subtitles / ffmpeg in-app (see SLICE-E-F-SCOPE out-of-scope)

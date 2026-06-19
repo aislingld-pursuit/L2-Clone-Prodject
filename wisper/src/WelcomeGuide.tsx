@@ -16,6 +16,12 @@ interface DownloadProgress {
   status: string;
 }
 
+interface YtDlpStatus {
+  available: boolean;
+  path: string | null;
+  hint: string;
+}
+
 type GuideStep = "welcome" | "system" | "model" | "how" | "done";
 
 interface SystemProfile {
@@ -68,6 +74,11 @@ export function WelcomeGuide({
   const [error, setError] = useState<string | null>(null);
   const [hardwareAdvice, setHardwareAdvice] = useState<HardwareAdvice | null>(null);
   const [hardwareLoading, setHardwareLoading] = useState(false);
+  const [ytDlpStatus, setYtDlpStatus] = useState<YtDlpStatus | null>(null);
+  const [ytDlpInstalling, setYtDlpInstalling] = useState(false);
+  const [ytDlpInstallProgress, setYtDlpInstallProgress] = useState<DownloadProgress | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -77,6 +88,9 @@ export function WelcomeGuide({
     setDownloading(false);
     setHardwareAdvice(null);
     setHardwareLoading(false);
+    setYtDlpStatus(null);
+    setYtDlpInstalling(false);
+    setYtDlpInstallProgress(null);
   }, [visible]);
 
   useEffect(() => {
@@ -126,6 +140,41 @@ export function WelcomeGuide({
       void unlistenError.then((fn) => fn());
     };
   }, [visible, downloading, onRefreshModel]);
+
+  useEffect(() => {
+    if (!visible || step !== "how") return;
+    invoke<YtDlpStatus>("get_yt_dlp_status")
+      .then(setYtDlpStatus)
+      .catch((e) => setError(String(e)));
+  }, [visible, step]);
+
+  useEffect(() => {
+    if (!visible || !ytDlpInstalling) return;
+
+    const unlistenProgress = listen<DownloadProgress>(
+      "yt-dlp-install-progress",
+      (event) => {
+        setYtDlpInstallProgress(event.payload);
+      },
+    );
+    const unlistenComplete = listen<string>("yt-dlp-install-complete", async () => {
+      setYtDlpInstalling(false);
+      setYtDlpInstallProgress(null);
+      const status = await invoke<YtDlpStatus>("get_yt_dlp_status");
+      setYtDlpStatus(status);
+    });
+    const unlistenError = listen<string>("yt-dlp-install-error", (event) => {
+      setYtDlpInstalling(false);
+      setYtDlpInstallProgress(null);
+      setError(event.payload);
+    });
+
+    return () => {
+      void unlistenProgress.then((fn) => fn());
+      void unlistenComplete.then((fn) => fn());
+      void unlistenError.then((fn) => fn());
+    };
+  }, [visible, ytDlpInstalling]);
 
   if (!visible) return null;
 
@@ -191,12 +240,27 @@ export function WelcomeGuide({
     }
   }
 
+  async function startYtDlpInstall() {
+    setError(null);
+    setYtDlpInstalling(true);
+    setYtDlpInstallProgress({ percent: 0, status: "Starting download…" });
+    try {
+      await invoke("start_yt_dlp_install");
+    } catch (e) {
+      setYtDlpInstalling(false);
+      setYtDlpInstallProgress(null);
+      setError(String(e));
+    }
+  }
+
   function finish() {
     localStorage.setItem(GUIDE_COMPLETE_KEY, "1");
     onFinish();
   }
 
   const progressPercent = downloadProgress?.percent ?? (downloading ? 2 : 0);
+  const ytDlpProgressPercent =
+    ytDlpInstallProgress?.percent ?? (ytDlpInstalling ? 2 : 0);
 
   return (
     <div className="guide-backdrop" role="presentation">
@@ -365,10 +429,52 @@ export function WelcomeGuide({
                 computer.
               </li>
               <li>
+                <strong>Or paste a URL</strong> — YouTube and other sites (optional; needs yt-dlp
+                once).
+              </li>
+              <li>
                 <strong>Read the transcript</strong> — your words appear below. You can copy or
                 export them.
               </li>
             </ol>
+            {!ytDlpStatus?.available && (
+              <div className="ytdlp-banner">
+                <p className="guide-note">
+                  Optional: install yt-dlp now for URL import, or skip and use files and recording
+                  only.
+                </p>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={startYtDlpInstall}
+                  disabled={ytDlpInstalling}
+                >
+                  {ytDlpInstalling ? "Installing yt-dlp…" : "Install yt-dlp"}
+                </button>
+                {ytDlpInstalling && (
+                  <div className="guide-progress" aria-live="polite">
+                    <div
+                      className="progress-track"
+                      role="progressbar"
+                      aria-valuenow={ytDlpProgressPercent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="progress-fill download"
+                        style={{ width: `${Math.max(ytDlpProgressPercent, 2)}%` }}
+                      />
+                    </div>
+                    <p className="progress-meta">
+                      {ytDlpInstallProgress?.status ?? "Downloading…"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            {ytDlpStatus?.available && (
+              <p className="hint">{ytDlpStatus.hint}</p>
+            )}
             <p className="guide-note">
               Tip: drag an audio file onto the main window anytime.
             </p>

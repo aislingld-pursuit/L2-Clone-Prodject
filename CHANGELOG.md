@@ -5,6 +5,22 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.23] - 2026-06-19
+
+### Added
+
+- **Install yt-dlp from the app** — one-click download of the official release binary into app data (`…/bin/yt-dlp`), with progress UI on the welcome guide and URL import panel. PATH-installed yt-dlp still works.
+
+**Tag `v0.2.0-beta.23`** — URL import without winget/Homebrew. See [docs/SLICE-E-F-SCOPE.md](./docs/SLICE-E-F-SCOPE.md) for in/out of scope.
+
+## [0.2.0-beta.22] - 2026-06-19
+
+### Added
+
+- **Export SRT and WebVTT** — from the transcript panel, save standard subtitle files using edited segment text and Whisper segment timestamps (local save dialog, same as TXT).
+
+**Tag `v0.2.0-beta.22`** — caption/subtitle export for video editors and players. See [docs/SLICE-E-F-SCOPE.md](./docs/SLICE-E-F-SCOPE.md) for in/out of scope.
+
 ## [0.2.0-beta.18](https://github.com/aislingld-pursuit/L2-Clone-Prodject/releases/tag/v0.2.0-beta.18) - 2026-06-08
 
 ### Fixed
