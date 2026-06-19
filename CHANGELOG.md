@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.25] - 2026-06-08
+
+### Added
+
+- **Auto-update managed yt-dlp and ffmpeg** — on launch, Wisper quietly re-downloads copies you installed through the app when they are older than seven days. Bundled installer binaries and PATH installs are untouched; missing tools are not auto-installed.
+
+**Tag `v0.2.0-beta.25`** — managed tool refresh on launch. See [docs/SLICE-H-SCOPE.md](./docs/SLICE-H-SCOPE.md) for in/out of scope.
+
 ## [0.2.0-beta.24] - 2026-06-08
 
 ### Added

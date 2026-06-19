@@ -14,6 +14,7 @@ const MODEL_TIERS = [
 interface DownloadProgress {
   percent: number | null;
   status: string;
+  automatic?: boolean;
 }
 
 interface YtDlpStatus {

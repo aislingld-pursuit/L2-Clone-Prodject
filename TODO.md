@@ -1,7 +1,7 @@
-# Wisper — TODO (beta.21 feature gates)
+# Wisper — TODO (beta.25 feature gates)
 
-Last updated: 2026-06-18  
-**Branch:** `Jimmy-Contributions`  
+Last updated: 2026-06-08  
+**Branch:** `master` (infra slices E–G); Slice UX **pending OK**  
 **Rule:** After each feature → run smoke test → all green → commit → next feature.
 
 Status: `[ ]` pending · `[~]` in progress · `[x]` done
@@ -111,9 +111,29 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 - **G3** — Tauri `start_ffmpeg_install` + `get_ffmpeg_status` ✅
 - **G4** — Welcome guide + Advanced options install UI ✅
 - **G5** — Bundle yt-dlp in release installers (CI → `resources/bin/`) ✅
-- **G6** — Bump version → **0.2.0-beta.24** + CHANGELOG (tag/CI when ready to ship)
+- **G6** — Bump version → **0.2.0-beta.24** + CHANGELOG ✅ (tag/CI shipped)
 
 **Out of scope (Slice G):** ffmpeg bundled without download, auto-update ffmpeg, ffplay UI, burn-in subs.
+
+---
+
+## Slice H — managed tool auto-update (`beta.25`)
+
+**Scope doc:** `docs/SLICE-H-SCOPE.md`
+
+- **H1** — `refresh_stale_managed_tools` + 7-day staleness check in wisper-core ✅
+- **H2** — `force_refresh` on `download_yt_dlp` / `download_ffmpeg` ✅
+- **H3** — Tauri `start_managed_tools_refresh` (background on launch) ✅
+- **H4** — Silent UI: no banner; Advanced shows progress when refresh runs ✅
+- **H5** — Bump version → **0.2.0-beta.25** + CHANGELOG (tag/CI when ready to ship)
+
+**Out of scope (Slice H):** auto-install missing tools, refresh bundled/PATH copies, user toggle for interval.
+
+---
+
+## Slice I — Export++ (`beta.26+`, planned)
+
+- batch/zip export, JSON/CSV, Word/PDF (see roadmap)
 
 ---
 
@@ -122,4 +142,48 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 - File size limits (upload, URL, recording, model)  
 - Jimmy 13-event analytics suite  
 - Pin icon / Tauri prefs file (Option C)
+
+---
+
+## Slice UX — Resona visual redesign (**pending Aisling OK**)
+
+**Planning doc:** `docs/RESONA-VISUAL-REDESIGN.md`  
+**Mockup:** `wisper/design/mockups/direction-ab-hybrid.html` (A + B hybrid)  
+**Brand assets:** `wisper/design/brand/` (from Resona + `Downloads/files.zip`)
+
+**Do not start until explicit OK after mockup review.**
+
+### Phase A — Structure
+
+- [ ] **UX-A1** — Extract `EmptyStateHero.tsx` (Jimmy full dashed drop zone ~200px)
+- [ ] **UX-A2** — URL import row on main transcribe panel
+- [ ] **UX-A3** — Model-missing: full panel only; remove duplicate inline `model-banner`
+- [ ] **UX-A4** — Export dropdown (TXT / SRT / VTT)
+- [ ] **UX-A5** — Add `tokens.css` (Resona Deep Current)
+
+### Phase B — Visual reskin + rebrand
+
+- [ ] **UX-B1** — Hybrid layout: gradient header + waveform + solid content card
+- [ ] **UX-B2** — Resona header: appmark + “Resona.” + tagline *a private whisper*
+- [ ] **UX-B3** — Reskin `App.css` / welcome guide to tokens
+- [ ] **UX-B4** — About / window title → Resona (package rename = separate task if needed)
+
+### Phase C — Layout (after A + B)
+
+- [ ] **UX-C1** — Two-column library + transcript (≥800px)
+- [ ] **UX-C2** — Split Advanced: Setup vs per-job options
+
+---
+
+## Slice H — Resona polish layer (deferred, post Slice UX)
+
+From original Resona app (`L2 project 1 Resona/resona/`). **Not** part of visual redesign.
+
+- [ ] **H1** — Live streaming dictation (`streaming.rs`, `vad.rs`, partial/final events)
+- [ ] **H2** — Partial transcript UI (live updating text while recording)
+- [ ] **H3** — Grammar review pass (`grammar.ts` — capitalization, punctuation, duplicates)
+- [ ] **H4** — Filler word removal (um, uh, you know, etc.)
+- [ ] **H5** — Writing score + metrics (grammar, conciseness, readability, clarity)
+
+**Prerequisite:** Slice UX Phase A + B shipped; partner HEART sign-off.
 

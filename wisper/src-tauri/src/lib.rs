@@ -17,7 +17,8 @@ use wisper_core::{
     get_system_profile, import_model_file, model_status_for_tier, recommend_model,
     resolve_model_path_for_tier, resolve_yt_dlp, run_compute_benchmark, transcribe_with_engine,
     download_all_starter_models, download_yt_dlp, download_ffmpeg, ffmpeg_status,
-    set_ffmpeg_candidates, yt_dlp_status, AppAbout,
+    ffmpeg_install_filename, managed_tool_is_stale, refresh_stale_managed_tools,
+    set_ffmpeg_candidates, yt_dlp_install_filename, yt_dlp_status, AppAbout,
     BenchmarkResult, ComputeBackend, ComputeInfo, DownloadProgress, FfmpegStatus, ModelRecommendation,
     ModelStatus, StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage,
     is_model_file_valid,
@@ -33,6 +34,8 @@ struct AppState {
     recorder: Mutex<Option<MicRecorder>>,
     recording_active: Arc<AtomicBool>,
 }
+
+static MANAGED_TOOLS_REFRESHING: AtomicBool = AtomicBool::new(false);
 
 fn app_data_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path()
@@ -659,7 +662,7 @@ fn start_yt_dlp_install(app: tauri::AppHandle) -> Result<(), String> {
     let bin_dir = yt_dlp_bin_dir(&app);
     let handle = app.clone();
     thread::spawn(move || {
-        let result = download_yt_dlp(&bin_dir, |progress| {
+        let result = download_yt_dlp(&bin_dir, false, |progress| {
             let _ = handle.emit("yt-dlp-install-progress", progress);
         });
         match result {
@@ -687,7 +690,7 @@ fn start_ffmpeg_install(app: tauri::AppHandle) -> Result<(), String> {
     let bin_dir = yt_dlp_bin_dir(&app);
     let handle = app.clone();
     thread::spawn(move || {
-        let result = download_ffmpeg(&bin_dir, |progress| {
+        let result = download_ffmpeg(&bin_dir, false, |progress| {
             let _ = handle.emit("ffmpeg-install-progress", progress);
         });
         match result {
@@ -701,6 +704,64 @@ fn start_ffmpeg_install(app: tauri::AppHandle) -> Result<(), String> {
                 let _ = handle.emit("ffmpeg-install-error", err.to_string());
             }
         }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn start_managed_tools_refresh(app: tauri::AppHandle) -> Result<(), String> {
+    if MANAGED_TOOLS_REFRESHING.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    let bin_dir = yt_dlp_bin_dir(&app);
+    let yt_dest = bin_dir.join(yt_dlp_install_filename());
+    let ffmpeg_dest = bin_dir.join(ffmpeg_install_filename());
+    let refresh_yt = managed_tool_is_stale(&yt_dest);
+    let refresh_ffmpeg = managed_tool_is_stale(&ffmpeg_dest);
+
+    if !refresh_yt && !refresh_ffmpeg {
+        MANAGED_TOOLS_REFRESHING.store(false, Ordering::SeqCst);
+        return Ok(());
+    }
+
+    let handle = app.clone();
+    thread::spawn(move || {
+        let result = refresh_stale_managed_tools(
+            &bin_dir,
+            |progress| {
+                let _ = handle.emit("yt-dlp-install-progress", progress);
+            },
+            |progress| {
+                let _ = handle.emit("ffmpeg-install-progress", progress);
+            },
+        );
+
+        match result {
+            Ok(()) => {
+                if refresh_yt {
+                    let _ = handle.emit(
+                        "yt-dlp-install-complete",
+                        yt_dest.to_string_lossy().into_owned(),
+                    );
+                }
+                if refresh_ffmpeg {
+                    let _ = handle.emit(
+                        "ffmpeg-install-complete",
+                        ffmpeg_dest.to_string_lossy().into_owned(),
+                    );
+                }
+            }
+            Err(err) => {
+                if refresh_yt {
+                    let _ = handle.emit("yt-dlp-install-error", err.to_string());
+                } else if refresh_ffmpeg {
+                    let _ = handle.emit("ffmpeg-install-error", err.to_string());
+                }
+            }
+        }
+
+        MANAGED_TOOLS_REFRESHING.store(false, Ordering::SeqCst);
     });
     Ok(())
 }
@@ -937,6 +998,7 @@ pub fn run() {
             start_yt_dlp_install,
             get_ffmpeg_status,
             start_ffmpeg_install,
+            start_managed_tools_refresh,
             start_transcription,
             start_url_import,
             cancel_transcription

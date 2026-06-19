@@ -8,6 +8,7 @@ pub mod fetch;
 pub mod hardware;
 pub mod model;
 pub mod storage;
+pub mod tool_refresh;
 pub mod transcribe;
 pub mod update;
 
@@ -37,6 +38,7 @@ pub use fetch::{
     download_url, download_yt_dlp, normalize_url, resolve_yt_dlp, yt_dlp_install_filename,
     yt_dlp_release_download_url, yt_dlp_status, DownloadProgress, UrlDownloadResult, YtDlpStatus,
 };
+pub use tool_refresh::{managed_tool_is_stale, refresh_stale_managed_tools, MANAGED_TOOL_REFRESH_SECS};
 pub use storage::{RecordingSource, RecordingSummary, Storage};
 pub use transcribe::{
     transcribe_file, transcribe_with_engine, GpuFallbackNotice, TranscribeOptions,

@@ -208,18 +208,18 @@ pub fn download_starter_model(
     std::fs::create_dir_all(models_dir).map_err(|e| WisperError::Fetch(e.to_string()))?;
     let dest = models_dir.join(model.file_name());
     if model_file_valid(&dest, model) {
-        on_progress(DownloadProgress {
-            percent: Some(100),
-            status: "Speech model already downloaded.".into(),
-        });
+        on_progress(DownloadProgress::with_status(
+            Some(100),
+            "Speech model already downloaded.",
+        ));
         return Ok(dest);
     }
     if dest.is_file() {
         let _ = std::fs::remove_file(&dest);
-        on_progress(DownloadProgress {
-            percent: None,
-            status: "Replacing incomplete or invalid model file…".into(),
-        });
+        on_progress(DownloadProgress::with_status(
+            None,
+            "Replacing incomplete or invalid model file…",
+        ));
     }
 
     let partial = dest.with_extension("part");
@@ -227,10 +227,7 @@ pub fn download_starter_model(
         let _ = std::fs::remove_file(&partial);
     }
 
-    on_progress(DownloadProgress {
-        percent: Some(0),
-        status: "Connecting…".into(),
-    });
+    on_progress(DownloadProgress::with_status(Some(0), "Connecting…"));
 
     let response = ureq::get(model.url())
         .call()
@@ -258,10 +255,10 @@ pub fn download_starter_model(
         downloaded += read as u64;
         let percent = total.map(|size| ((downloaded.saturating_mul(100)) / size.max(1)) as i32);
         let mb = downloaded / 1_000_000;
-        on_progress(DownloadProgress {
+        on_progress(DownloadProgress::with_status(
             percent,
-            status: format!("Downloading speech model… {mb} MB"),
-        });
+            format!("Downloading speech model… {mb} MB"),
+        ));
     }
 
     file.flush()
@@ -269,10 +266,7 @@ pub fn download_starter_model(
     drop(file);
 
     std::fs::rename(&partial, &dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
-    on_progress(DownloadProgress {
-        percent: Some(100),
-        status: "Download complete.".into(),
-    });
+    on_progress(DownloadProgress::with_status(Some(100), "Download complete."));
     Ok(dest)
 }
 

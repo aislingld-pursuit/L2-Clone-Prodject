@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
+import "./tokens.css";
 import "./App.css";
+import { AppHeader } from "./AppHeader";
+import { EmptyStateHero } from "./EmptyStateHero";
+import { ExportMenu } from "./ExportMenu";
+import { ModelMissingPanel } from "./ModelMissingPanel";
+import { UrlImportRow } from "./UrlImportRow";
 import { GUIDE_COMPLETE_KEY, WelcomeGuide } from "./WelcomeGuide";
 
 const UPDATE_DISMISS_KEY = "wisper-update-dismissed";
@@ -11,6 +17,7 @@ const UPDATE_DISMISS_KEY = "wisper-update-dismissed";
 interface DownloadProgress {
   percent: number | null;
   status: string;
+  automatic?: boolean;
 }
 
 interface TranscriptSegment {
@@ -61,7 +68,7 @@ function computeHint(info: ComputeInfo | null): string {
     return `This build is CPU-only. Rebuild with a GPU feature: gpu-vulkan (Windows/Linux), gpu-cuda (NVIDIA), or use macOS for Metal. ${cpuLine}`;
   }
   const fallbackLine = info.supports_cpu_fallback
-    ? " GPU is tried first; if inference fails, Wisper automatically retries on CPU and shows a notice."
+    ? " GPU is tried first; if inference fails, Resona automatically retries on CPU and shows a notice."
     : "";
   switch (info.gpu_backend_kind) {
     case "metal":
@@ -114,11 +121,6 @@ interface RecordingStatus {
 interface StopRecordingResult {
   audio_path: string;
   duration_ms: number;
-}
-
-interface DownloadProgress {
-  percent: number | null;
-  status: string;
 }
 
 interface YtDlpStatus {
@@ -302,6 +304,8 @@ function App() {
   );
   const [urlJobActive, setUrlJobActive] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const ytDlpAutoRefreshRef = useRef(false);
+  const ffmpegAutoRefreshRef = useRef(false);
 
   const refreshLibrary = useCallback(async () => {
     try {
@@ -432,23 +436,33 @@ function App() {
     invoke<FfmpegStatus>("get_ffmpeg_status")
       .then(setFfmpegStatus)
       .catch((e) => setError(String(e)));
+    invoke("start_managed_tools_refresh").catch(() => {});
   }, []);
 
   useEffect(() => {
     const unlistenProgress = listen<DownloadProgress>("yt-dlp-install-progress", (event) => {
-      setYtDlpInstalling(true);
+      ytDlpAutoRefreshRef.current = event.payload.automatic ?? false;
       setYtDlpInstallProgress(event.payload);
+      if (!event.payload.automatic) {
+        setYtDlpInstalling(true);
+      }
     });
     const unlistenComplete = listen<string>("yt-dlp-install-complete", () => {
+      const wasAutomatic = ytDlpAutoRefreshRef.current;
       setYtDlpInstalling(false);
       setYtDlpInstallProgress(null);
       void refreshYtDlpStatus();
-      setStatus("yt-dlp is ready for URL imports.");
+      if (!wasAutomatic) {
+        setStatus("yt-dlp is ready for URL imports.");
+      }
     });
     const unlistenError = listen<string>("yt-dlp-install-error", (event) => {
+      const wasAutomatic = ytDlpAutoRefreshRef.current;
       setYtDlpInstalling(false);
       setYtDlpInstallProgress(null);
-      setError(event.payload);
+      if (!wasAutomatic) {
+        setError(event.payload);
+      }
     });
 
     return () => {
@@ -460,19 +474,28 @@ function App() {
 
   useEffect(() => {
     const unlistenProgress = listen<DownloadProgress>("ffmpeg-install-progress", (event) => {
-      setFfmpegInstalling(true);
+      ffmpegAutoRefreshRef.current = event.payload.automatic ?? false;
       setFfmpegInstallProgress(event.payload);
+      if (!event.payload.automatic) {
+        setFfmpegInstalling(true);
+      }
     });
     const unlistenComplete = listen<string>("ffmpeg-install-complete", () => {
+      const wasAutomatic = ffmpegAutoRefreshRef.current;
       setFfmpegInstalling(false);
       setFfmpegInstallProgress(null);
       void refreshFfmpegStatus();
-      setStatus("ffmpeg is ready for MP3 and video decode.");
+      if (!wasAutomatic) {
+        setStatus("ffmpeg is ready for MP3 and video decode.");
+      }
     });
     const unlistenError = listen<string>("ffmpeg-install-error", (event) => {
+      const wasAutomatic = ffmpegAutoRefreshRef.current;
       setFfmpegInstalling(false);
       setFfmpegInstallProgress(null);
-      setError(event.payload);
+      if (!wasAutomatic) {
+        setError(event.payload);
+      }
     });
 
     return () => {
@@ -1097,39 +1120,20 @@ function App() {
         onFinish={closeWelcomeGuide}
         onRefreshModel={refreshModelStatus}
       />
-    <main className="app">
-      <header className="header">
-        <div className="header-main">
-          <h1>Wisper</h1>
-          <p className="subtitle">
-            Turn speech into text on your computer — private and offline.
-          </p>
-        </div>
-        <div className="header-actions">
-          <button
-            type="button"
-            className="about-trigger"
-            onClick={openWelcomeGuide}
-          >
-            Get started
-          </button>
-          <button
-            type="button"
-            className="about-trigger"
-            onClick={() => setShowAbout(true)}
-            aria-haspopup="dialog"
-          >
-            About
-          </button>
-        </div>
-      </header>
+    <div className="app-shell">
+      <AppHeader
+        isRecording={isRecording}
+        onGetStarted={openWelcomeGuide}
+        onAbout={() => setShowAbout(true)}
+      />
+      <main className="app app-body">
 
       {showUpdateBanner && updateInfo?.latest_version && updateReleaseUrl && (
         <section className="panel update-banner" aria-live="polite">
           <div className="update-banner-copy">
             <h2>Update available</h2>
             <p>
-              Wisper <strong>{updateInfo.latest_version}</strong> is ready. You&apos;re on{" "}
+              Resona <strong>{updateInfo.latest_version}</strong> is ready. You&apos;re on{" "}
               {updateInfo.current_version}.
             </p>
           </div>
@@ -1152,16 +1156,7 @@ function App() {
       )}
 
       {modelMissing && !showWelcome && (
-        <section className="panel onboarding" aria-live="polite">
-          <h2>One more step</h2>
-          <p className="guide-lead">
-            Wisper needs a speech model before it can transcribe. Tap Get started and we&apos;ll
-            walk you through a one-time download (~150 MB).
-          </p>
-          <button type="button" className="primary" onClick={openWelcomeGuide}>
-            Open setup guide
-          </button>
-        </section>
+        <ModelMissingPanel onOpenGuide={openWelcomeGuide} />
       )}
 
       {showAbout && (
@@ -1178,7 +1173,7 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="about-header">
-              <h2 id="about-title">About Wisper</h2>
+              <h2 id="about-title">About Resona</h2>
               <button
                 type="button"
                 className="about-close"
@@ -1280,181 +1275,38 @@ function App() {
       )}
 
       <section className={`panel import-panel${dragOver ? " drag-over" : ""}`}>
-        <h2 className="panel-title">Transcribe audio</h2>
+        <h2 className="panel-title">Transcribe</h2>
         <p className="privacy-subtitle">
-          Transcription runs locally on your device. No data leaves your computer.
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <rect x="4" y="10" width="16" height="11" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          </svg>
+          On-device · nothing leaves your computer
         </p>
-        {modelMissing && !showWelcome && (
-          <div className="model-banner" role="status">
-            <p>
-              Speech model not installed yet. Download once to start transcribing.
-            </p>
-            <button type="button" className="primary" onClick={openWelcomeGuide}>
-              Get started
-            </button>
-          </div>
-        )}
-        <p className="drop-hint">
-          Drop an audio or video file here, or use the buttons below.
-        </p>
-        {audioPath && isVideoPath(audioPath) && (
-          <p className="hint warn">
-            That looks like video — Wisper will extract audio for transcription. For
-            best results, try MP3 or WAV if extraction is slow.
-          </p>
-        )}
-        <div className="actions">
-          {!isRecording ? (
-            <button
-              type="button"
-              className={`record${modelMissing ? " disabled-muted" : ""}`}
-              onClick={startRecording}
-              disabled={busy || modelMissing}
-            >
-              Record
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="record stop"
-              onClick={stopRecordingAndTranscribe}
-              disabled={busy}
-            >
-              Stop & transcribe
-            </button>
-          )}
-          <button type="button" onClick={pickFile} disabled={busy || isRecording}>
-            Choose audio file
-          </button>
-          <button
-            type="button"
-            className={`primary${!audioPath || modelMissing ? " disabled-muted" : ""}`}
-            onClick={transcribe}
-            disabled={busy || isRecording || !audioPath || modelMissing}
-          >
-            {busy ? "Transcribing…" : "Transcribe"}
-          </button>
-          {modelMissing && (
-            <p className="hint disabled-hint">
-              Install the speech model first — use Get started above.
-            </p>
-          )}
-          {!modelMissing && !audioPath && !busy && !isRecording && (
-            <p className="hint disabled-hint">Choose or record audio to enable Transcribe.</p>
-          )}
-          {busy && (
-            <button type="button" className="cancel" onClick={cancelTranscription}>
-              Cancel
-            </button>
-          )}
-        </div>
-
-        {showAdvanced && (
-          <div className="url-import">
-            <label className="field-label" htmlFor="url-input">
-              Import from URL
-            </label>
-            <div className="url-row">
-              <input
-                id="url-input"
-                type="url"
-                className="url-input"
-                placeholder="https://www.youtube.com/watch?v=…"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                disabled={busy || isRecording}
-              />
-              <button
-                type="button"
-                className={`primary${!ytDlpStatus?.available || !urlInput.trim() ? " disabled-muted" : ""}`}
-                onClick={importUrlAndTranscribe}
-                disabled={busy || isRecording || !ytDlpStatus?.available || !urlInput.trim()}
-              >
-                Download & transcribe
-              </button>
-            </div>
-            {ytDlpStatus && ytDlpStatus.available && (
-              <p className="hint">{ytDlpStatus.hint}</p>
-            )}
-            {!ytDlpStatus?.available && (
-              <div className="ytdlp-banner">
-                <p className="hint warn">
-                  {ytDlpStatus?.hint ??
-                    "URL import needs yt-dlp. Install it once below, or add yt-dlp to your PATH."}
-                </p>
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={installYtDlp}
-                  disabled={busy || isRecording || ytDlpInstalling}
-                >
-                  {ytDlpInstalling ? "Installing yt-dlp…" : "Install yt-dlp"}
-                </button>
-                {ytDlpInstalling && ytDlpInstallProgress && (
-                  <div className="ytdlp-progress" aria-live="polite">
-                    <div
-                      className="progress-track"
-                      role="progressbar"
-                      aria-valuenow={ytDlpInstallProgress.percent ?? 2}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    >
-                      <div
-                        className="progress-fill download"
-                        style={{
-                          width: `${Math.max(ytDlpInstallProgress.percent ?? 2, 2)}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="progress-meta">{ytDlpInstallProgress.status}</p>
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="ffmpeg-import">
-              <p className="field-label">MP3 / video decode</p>
-              {ffmpegStatus && ffmpegStatus.available && (
-                <p className="hint">{ffmpegStatus.hint}</p>
-              )}
-              {!ffmpegStatus?.available && (
-                <div className="ytdlp-banner">
-                  <p className="hint warn">
-                    {ffmpegStatus?.hint ??
-                      "Some MP3 and video files need ffmpeg for full-length decode. Install once below, or add ffmpeg to your PATH."}
-                  </p>
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={installFfmpeg}
-                    disabled={busy || isRecording || ffmpegInstalling}
-                  >
-                    {ffmpegInstalling ? "Installing ffmpeg…" : "Install ffmpeg"}
-                  </button>
-                  {ffmpegInstalling && ffmpegInstallProgress && (
-                    <div className="ytdlp-progress" aria-live="polite">
-                      <div
-                        className="progress-track"
-                        role="progressbar"
-                        aria-valuenow={ffmpegInstallProgress.percent ?? 2}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      >
-                        <div
-                          className="progress-fill download"
-                          style={{
-                            width: `${Math.max(ffmpegInstallProgress.percent ?? 2, 2)}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="progress-meta">{ffmpegInstallProgress.status}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
+        <EmptyStateHero
+          dragOver={dragOver}
+          modelMissing={modelMissing}
+          isRecording={isRecording}
+          busy={busy}
+          audioPath={audioPath}
+          showVideoHint={Boolean(audioPath && isVideoPath(audioPath))}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecordingAndTranscribe}
+          onPickFile={pickFile}
+          onTranscribe={transcribe}
+          onCancel={cancelTranscription}
+        />
+        <UrlImportRow
+          urlInput={urlInput}
+          busy={busy}
+          isRecording={isRecording}
+          ytDlpStatus={ytDlpStatus}
+          ytDlpInstalling={ytDlpInstalling}
+          ytDlpInstallProgress={ytDlpInstallProgress}
+          onUrlChange={setUrlInput}
+          onImport={importUrlAndTranscribe}
+          onInstallYtDlp={installYtDlp}
+        />
         {!showAdvanced && (
           <p className="hint advanced-hint">
             <button
@@ -1466,7 +1318,7 @@ function App() {
             >
               Advanced options
             </button>
-            {" "}— language, GPU, URL import, and model details.
+            {" "}— language, GPU, and model details.
           </p>
         )}
 
@@ -1702,6 +1554,71 @@ function App() {
                 Open models folder
               </button>
             </div>
+
+            <h3 className="advanced-subtitle">MP3 / video decode</h3>
+            {ffmpegStatus && ffmpegStatus.available && (
+              <p className="hint">{ffmpegStatus.hint}</p>
+            )}
+            {!ffmpegStatus?.available && (
+              <div className="ytdlp-banner">
+                <p className="hint warn">
+                  {ffmpegStatus?.hint ??
+                    "Some MP3 and video files need ffmpeg for full-length decode. Install once below, or add ffmpeg to your PATH."}
+                </p>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={installFfmpeg}
+                  disabled={busy || isRecording || ffmpegInstalling}
+                >
+                  {ffmpegInstalling ? "Installing ffmpeg…" : "Install ffmpeg"}
+                </button>
+                {ffmpegInstalling && ffmpegInstallProgress && (
+                  <div className="ytdlp-progress" aria-live="polite">
+                    <div
+                      className="progress-track"
+                      role="progressbar"
+                      aria-valuenow={ffmpegInstallProgress.percent ?? 2}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="progress-fill download"
+                        style={{
+                          width: `${Math.max(ffmpegInstallProgress.percent ?? 2, 2)}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="progress-meta">{ffmpegInstallProgress.status}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(ytDlpInstallProgress?.automatic || ffmpegInstallProgress?.automatic) && (
+              <>
+                <h3 className="advanced-subtitle">Background updates</h3>
+                {ytDlpInstallProgress?.automatic && (
+                  <p className="hint" aria-live="polite">
+                    {ytDlpInstallProgress.status}
+                    {ytDlpInstallProgress.percent != null
+                      ? ` (${ytDlpInstallProgress.percent}%)`
+                      : ""}
+                  </p>
+                )}
+                {ffmpegInstallProgress?.automatic && (
+                  <p className="hint" aria-live="polite">
+                    {ffmpegInstallProgress.status}
+                    {ffmpegInstallProgress.percent != null
+                      ? ` (${ffmpegInstallProgress.percent}%)`
+                      : ""}
+                  </p>
+                )}
+                <p className="hint">
+                  Resona checks yt-dlp and ffmpeg you installed through the app about once a week.
+                </p>
+              </>
+            )}
           </section>
         </>
       )}
@@ -1758,15 +1675,12 @@ function App() {
                 <button type="button" onClick={copyTranscript} disabled={busy}>
                   Copy
                 </button>
-                <button type="button" onClick={exportTranscriptTxt} disabled={busy}>
-                  Export TXT
-                </button>
-                <button type="button" onClick={exportTranscriptSrt} disabled={busy}>
-                  Export SRT
-                </button>
-                <button type="button" onClick={exportTranscriptVtt} disabled={busy}>
-                  Export VTT
-                </button>
+                <ExportMenu
+                  disabled={busy}
+                  onExportTxt={exportTranscriptTxt}
+                  onExportSrt={exportTranscriptSrt}
+                  onExportVtt={exportTranscriptVtt}
+                />
                 <button
                   type="button"
                   className="cancel"
@@ -1800,6 +1714,7 @@ function App() {
         </section>
       )}
     </main>
+    </div>
     </>
   );
 }

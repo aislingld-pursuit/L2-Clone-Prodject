@@ -253,14 +253,16 @@ fn ffmpeg_already_installed(dest: &Path) -> bool {
 /// Download BtbN static ffmpeg build into `bin_dir`.
 pub fn download_ffmpeg(
     bin_dir: &Path,
+    force_refresh: bool,
     mut on_progress: impl FnMut(DownloadProgress),
 ) -> Result<PathBuf, WisperError> {
     std::fs::create_dir_all(bin_dir).map_err(|e| WisperError::Fetch(e.to_string()))?;
     let dest = bin_dir.join(ffmpeg_install_filename());
-    if ffmpeg_already_installed(&dest) {
+    if !force_refresh && ffmpeg_already_installed(&dest) {
         on_progress(DownloadProgress {
             percent: Some(100),
             status: "ffmpeg already installed.".into(),
+            automatic: false,
         });
         return Ok(dest);
     }
@@ -281,6 +283,7 @@ pub fn download_ffmpeg(
     on_progress(DownloadProgress {
         percent: Some(0),
         status: "Connecting to GitHub…".into(),
+        automatic: force_refresh,
     });
 
     let response = ureq::get(ffmpeg_archive_url())
@@ -312,6 +315,7 @@ pub fn download_ffmpeg(
         on_progress(DownloadProgress {
             percent,
             status: format!("Downloading ffmpeg… {mb} MB"),
+            automatic: force_refresh,
         });
     }
     file.flush()
@@ -321,6 +325,7 @@ pub fn download_ffmpeg(
     on_progress(DownloadProgress {
         percent: None,
         status: "Extracting ffmpeg…".into(),
+        automatic: force_refresh,
     });
 
     if archive_is_zip() {
@@ -338,7 +343,12 @@ pub fn download_ffmpeg(
 
     on_progress(DownloadProgress {
         percent: Some(100),
-        status: "ffmpeg install complete.".into(),
+        status: if force_refresh {
+            "ffmpeg update complete.".into()
+        } else {
+            "ffmpeg install complete.".into()
+        },
+        automatic: force_refresh,
     });
     Ok(dest)
 }

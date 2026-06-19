@@ -76,6 +76,19 @@ fn validate_public_fetch_target(url: &Url) -> Result<(), WisperError> {
 pub struct DownloadProgress {
     pub percent: Option<i32>,
     pub status: String,
+    /// True when triggered by launch auto-update (not a manual install button).
+    #[serde(default)]
+    pub automatic: bool,
+}
+
+impl DownloadProgress {
+    pub fn with_status(percent: Option<i32>, status: impl Into<String>) -> Self {
+        Self {
+            percent,
+            status: status.into(),
+            automatic: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -166,22 +179,26 @@ pub fn yt_dlp_release_download_url() -> &'static str {
 /// Download the official yt-dlp release binary into `bin_dir` (e.g. app data `bin/`).
 pub fn download_yt_dlp(
     bin_dir: &Path,
+    force_refresh: bool,
     mut on_progress: impl FnMut(DownloadProgress),
 ) -> Result<PathBuf, WisperError> {
     use std::io::{Read, Write};
 
     std::fs::create_dir_all(bin_dir).map_err(|e| WisperError::Fetch(e.to_string()))?;
     let dest = bin_dir.join(yt_dlp_install_filename());
-    if dest.is_file() {
+    if !force_refresh && dest.is_file() {
         if let Ok(meta) = std::fs::metadata(&dest) {
             if meta.len() > 100_000 {
                 on_progress(DownloadProgress {
                     percent: Some(100),
                     status: "yt-dlp already installed.".into(),
+                    automatic: false,
                 });
                 return Ok(dest);
             }
         }
+        let _ = std::fs::remove_file(&dest);
+    } else if force_refresh && dest.is_file() {
         let _ = std::fs::remove_file(&dest);
     }
 
@@ -193,6 +210,7 @@ pub fn download_yt_dlp(
     on_progress(DownloadProgress {
         percent: Some(0),
         status: "Connecting to GitHub…".into(),
+        automatic: force_refresh,
     });
 
     let response = ureq::get(yt_dlp_release_download_url())
@@ -224,6 +242,7 @@ pub fn download_yt_dlp(
         on_progress(DownloadProgress {
             percent,
             status: format!("Downloading yt-dlp… {mb} MB"),
+            automatic: force_refresh,
         });
     }
 
@@ -245,7 +264,12 @@ pub fn download_yt_dlp(
 
     on_progress(DownloadProgress {
         percent: Some(100),
-        status: "yt-dlp install complete.".into(),
+        status: if force_refresh {
+            "yt-dlp update complete.".into()
+        } else {
+            "yt-dlp install complete.".into()
+        },
+        automatic: force_refresh,
     });
     Ok(dest)
 }
@@ -323,10 +347,7 @@ pub fn download_url(
     let output_template = output_dir.join(format!("{file_id}.%(ext)s"));
     let output_arg = output_template.to_string_lossy().into_owned();
 
-    on_progress(DownloadProgress {
-        percent: None,
-        status: "Starting download…".into(),
-    });
+    on_progress(DownloadProgress::with_status(None, "Starting download…"));
 
     let mut child = Command::new(yt_dlp)
         .args([
@@ -385,15 +406,9 @@ pub fn download_url(
             continue;
         }
         if let Some(percent) = parse_download_percent(trimmed) {
-            on_progress(DownloadProgress {
-                percent: Some(percent),
-                status: trimmed.to_string(),
-            });
+            on_progress(DownloadProgress::with_status(Some(percent), trimmed));
         } else if trimmed.starts_with("[ExtractAudio]") || trimmed.starts_with("[Merger]") {
-            on_progress(DownloadProgress {
-                percent: None,
-                status: trimmed.to_string(),
-            });
+            on_progress(DownloadProgress::with_status(None, trimmed));
         }
     }
 
@@ -435,10 +450,7 @@ pub fn download_url(
         )));
     }
 
-    on_progress(DownloadProgress {
-        percent: Some(100),
-        status: "Download complete".into(),
-    });
+    on_progress(DownloadProgress::with_status(Some(100), "Download complete"));
 
     download_guard.committed = true;
 
