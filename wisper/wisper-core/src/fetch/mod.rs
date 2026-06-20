@@ -9,6 +9,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::error::WisperError;
+use crate::managed_binary::{http_get, prepare_managed_binary, yt_dlp_runnable};
 
 const BLOCKED_HOSTNAMES: &[&str] = &[
     "localhost",
@@ -137,7 +138,7 @@ fn find_in_path(name: &str) -> Option<PathBuf> {
 /// Resolve yt-dlp from bundled/extra paths, then PATH.
 pub fn resolve_yt_dlp(extra_candidates: &[PathBuf]) -> Result<PathBuf, WisperError> {
     for candidate in extra_candidates {
-        if candidate.is_file() {
+        if candidate.is_file() && yt_dlp_runnable(candidate) {
             return Ok(candidate.clone());
         }
     }
@@ -145,12 +146,16 @@ pub fn resolve_yt_dlp(extra_candidates: &[PathBuf]) -> Result<PathBuf, WisperErr
     #[cfg(windows)]
     {
         if let Some(path) = find_in_path("yt-dlp.exe") {
-            return Ok(path);
+            if yt_dlp_runnable(&path) {
+                return Ok(path);
+            }
         }
     }
 
     if let Some(path) = find_in_path("yt-dlp") {
-        return Ok(path);
+        if yt_dlp_runnable(&path) {
+            return Ok(path);
+        }
     }
 
     Err(WisperError::Fetch(
@@ -188,7 +193,7 @@ pub fn download_yt_dlp(
     let dest = bin_dir.join(yt_dlp_install_filename());
     if !force_refresh && dest.is_file() {
         if let Ok(meta) = std::fs::metadata(&dest) {
-            if meta.len() > 100_000 {
+            if meta.len() > 100_000 && yt_dlp_runnable(&dest) {
                 on_progress(DownloadProgress {
                     percent: Some(100),
                     status: "yt-dlp already installed.".into(),
@@ -213,8 +218,7 @@ pub fn download_yt_dlp(
         automatic: force_refresh,
     });
 
-    let response = ureq::get(yt_dlp_release_download_url())
-        .call()
+    let response = http_get(yt_dlp_release_download_url())
         .map_err(|e| WisperError::Fetch(e.to_string()))?;
 
     let total = response
@@ -252,14 +256,14 @@ pub fn download_yt_dlp(
 
     std::fs::rename(&partial, &dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&dest)
-            .map_err(|e| WisperError::Fetch(e.to_string()))?
-            .permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&dest, perms).map_err(|e| WisperError::Fetch(e.to_string()))?;
+    prepare_managed_binary(&dest)?;
+
+    if !yt_dlp_runnable(&dest) {
+        let _ = std::fs::remove_file(&dest);
+        return Err(WisperError::Fetch(
+            "yt-dlp install failed verification — downloaded binary did not run on this system"
+                .into(),
+        ));
     }
 
     on_progress(DownloadProgress {
@@ -503,6 +507,17 @@ mod tests {
     fn yt_dlp_release_url_is_https_github() {
         let url = yt_dlp_release_download_url();
         assert!(url.starts_with("https://github.com/yt-dlp/yt-dlp/releases/latest/download/"));
+    }
+
+    #[test]
+    fn yt_dlp_release_url_matches_platform() {
+        let url = yt_dlp_release_download_url();
+        #[cfg(windows)]
+        assert!(url.ends_with("yt-dlp.exe"));
+        #[cfg(target_os = "macos")]
+        assert!(url.ends_with("yt-dlp_macos"));
+        #[cfg(all(not(windows), not(target_os = "macos")))]
+        assert!(url.ends_with("/yt-dlp"));
     }
 
     #[test]

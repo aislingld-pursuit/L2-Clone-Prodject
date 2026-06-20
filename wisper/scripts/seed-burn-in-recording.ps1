@@ -15,6 +15,20 @@ $audioDir = Join-Path $appData "audio"
 $dbPath = Join-Path $appData "wisper.db"
 New-Item -ItemType Directory -Force -Path $audioDir | Out-Null
 
+# Apply schema v3 migration if the app has not been opened since Slice K.
+$version = [int](sqlite3 $dbPath "PRAGMA user_version;")
+if ($version -lt 3) {
+    sqlite3 $dbPath @"
+ALTER TABLE transcript_segments ADD COLUMN speaker TEXT;
+ALTER TABLE transcript_segments ADD COLUMN words_json TEXT;
+PRAGMA user_version = 3;
+"@
+    if ($LASTEXITCODE -ne 0) {
+        throw "DB migration to v3 failed"
+    }
+    Write-Host "Migrated wisper.db to schema v3"
+}
+
 $recordingId = [guid]::NewGuid().ToString()
 $destVideo = Join-Path $audioDir "$recordingId.mp4"
 Copy-Item -Path $srcVideo -Destination $destVideo -Force

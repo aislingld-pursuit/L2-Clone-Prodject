@@ -7,7 +7,7 @@ New-Item -ItemType Directory -Force -Path $destDir | Out-Null
 $url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
 $dest = Join-Path $destDir "yt-dlp.exe"
 Write-Host "Downloading $url -> $dest"
-Invoke-WebRequest -Uri $url -OutFile $dest
+Invoke-WebRequest -Uri $url -OutFile $dest -UserAgent "wisper-bundle-script"
 
 if (-not (Test-Path $dest)) {
     throw "yt-dlp bundle download failed"

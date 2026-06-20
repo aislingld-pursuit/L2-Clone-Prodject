@@ -362,9 +362,7 @@ export function WelcomeGuide({
                   {hardwareAdvice.profile.cpu_architecture} ·{" "}
                   {Math.round(hardwareAdvice.profile.total_ram_mb / 1024)} GB RAM ·{" "}
                   {hardwareAdvice.profile.physical_cores} cores
-                  {hardwareAdvice.profile.gpu_backend
-                    ? ` · ${hardwareAdvice.profile.gpu_backend}`
-                    : " · CPU only"}
+                  {hardwareAdvice.profile.gpu_backend ? " · GPU" : " · CPU only"}
                 </p>
                 <p className="guide-note">
                   <strong>

@@ -17,7 +17,7 @@ async function main() {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.waitForLoadState("domcontentloaded");
 
-  const recordingBtn = page.getByRole("button", { name: new RegExp(TITLE, "i") });
+  const recordingBtn = page.getByRole("button", { name: new RegExp(TITLE, "i") }).first();
   await recordingBtn.waitFor({ state: "visible", timeout: 30_000 });
   await recordingBtn.click();
 

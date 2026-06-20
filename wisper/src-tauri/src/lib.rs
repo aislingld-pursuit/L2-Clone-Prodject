@@ -19,8 +19,9 @@ use wisper_core::{
     import_model_file, is_video_path, model_status_for_tier, recommend_model,
     resolve_model_path_for_tier, resolve_yt_dlp, run_compute_benchmark, transcribe_with_engine,
     download_all_starter_models, download_yt_dlp, download_ffmpeg, ffmpeg_status,
-    ffmpeg_install_filename, managed_tool_is_stale, refresh_stale_managed_tools,
-    set_ffmpeg_candidates, yt_dlp_install_filename, yt_dlp_status, AppAbout,
+    ffmpeg_install_filename, ffmpeg_runnable, managed_tool_is_stale, prepare_managed_binary,
+    refresh_stale_managed_tools,
+    set_ffmpeg_candidates, yt_dlp_install_filename, yt_dlp_runnable, yt_dlp_status, AppAbout,
     BenchmarkResult, ComputeBackend, ComputeInfo, DownloadProgress, FfmpegStatus, ModelRecommendation,
     ModelStatus, StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage,
     is_model_file_valid, TranscriptExportSet,
@@ -99,6 +100,28 @@ fn ffmpeg_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
     }
     candidates.push(app_data_dir(app).join("bin").join(exe_name));
     candidates
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_macos_managed_tools(app: &tauri::AppHandle) {
+    for path in yt_dlp_candidates(app)
+        .into_iter()
+        .chain(ffmpeg_candidates(app))
+    {
+        if !path.is_file() {
+            continue;
+        }
+        let runnable = if path.file_name().is_some_and(|n| {
+            n == "yt-dlp" || n == "yt-dlp.exe"
+        }) {
+            yt_dlp_runnable(&path)
+        } else {
+            ffmpeg_runnable(&path)
+        };
+        if !runnable {
+            let _ = prepare_managed_binary(&path);
+        }
+    }
 }
 
 fn transcribe_options_from_language(language: Option<String>) -> TranscribeOptions {
@@ -1268,6 +1291,8 @@ pub fn run() {
             std::fs::create_dir_all(audio_dir(app.handle())).ok();
             std::fs::create_dir_all(yt_dlp_bin_dir(app.handle())).ok();
             set_ffmpeg_candidates(ffmpeg_candidates(app.handle()));
+            #[cfg(target_os = "macos")]
+            prepare_macos_managed_tools(app.handle());
             let storage = Storage::open(&db_path(app.handle())).map_err(|e| e.to_string())?;
             app.manage(AppState {
                 storage: Mutex::new(storage),

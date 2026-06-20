@@ -6,6 +6,7 @@ pub mod export;
 pub mod ffmpeg_tools;
 pub mod fetch;
 pub mod hardware;
+mod managed_binary;
 pub mod model;
 pub mod storage;
 pub mod tool_refresh;
@@ -52,7 +53,7 @@ pub use transcribe::{
     TranscriptSegment, TranscriptWord, TranscriptionProgress, TranscriptionResult,
 };
 pub use video::{burn_in_subtitles, is_video_path};
-pub use update::{check_for_update, UpdateCheckResult, GITHUB_REPO};
+pub use managed_binary::{ffmpeg_runnable, prepare_managed_binary, yt_dlp_runnable};
 
 /// Default model filename (user downloads to app data dir on first run).
 pub const DEFAULT_MODEL_FILENAME: &str = "ggml-large-v3-turbo.bin";

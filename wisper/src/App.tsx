@@ -609,7 +609,7 @@ function App() {
       (event) => {
         setFallbackNotice(event.payload);
         setStatus(
-          `${event.payload.from_gpu} failed — retrying on CPU (${computeInfo?.cpu_architecture ?? "ggml-cpu"})…`,
+          `GPU failed — retrying on CPU (${computeInfo?.cpu_architecture ?? "ggml-cpu"})…`,
         );
       },
     );
@@ -627,14 +627,12 @@ function App() {
         if (event.payload.used_cpu_fallback) {
           setFallbackNotice(null);
           setStatus(
-            `Done on CPU after ${computeInfo?.gpu_backend ?? "GPU"} fallback — ${event.payload.segments.length} segment${event.payload.segments.length === 1 ? "" : "s"} saved.`,
+            `Done on CPU after GPU fallback — ${event.payload.segments.length} segment${event.payload.segments.length === 1 ? "" : "s"} saved.`,
           );
         } else {
           setFallbackNotice(null);
           const device =
-            event.payload.actual_backend === "gpu"
-              ? computeInfo?.gpu_backend ?? "GPU"
-              : "CPU";
+            event.payload.actual_backend === "gpu" ? "GPU" : "CPU";
           setStatus(
             `Done on ${device} — ${event.payload.segments.length} segment${event.payload.segments.length === 1 ? "" : "s"} saved to library.`,
           );
@@ -879,10 +877,7 @@ function App() {
     setDownloadProgress(null);
     setFallbackNotice(null);
     setLastUsedCpuFallback(false);
-    const deviceLabel =
-      computeBackend === "gpu" && computeInfo?.gpu_backend
-        ? computeInfo.gpu_backend
-        : "CPU";
+    const deviceLabel = computeBackend === "gpu" ? "GPU" : "CPU";
     const fileName = path.split(/[/\\]/).pop() ?? path;
     const batchLabel = options?.batch
       ? ` (${options.batch.current} of ${options.batch.total}: ${fileName})`
@@ -1259,7 +1254,7 @@ function App() {
     }
   }
 
-  const gpuLabel = computeInfo?.gpu_backend ?? "GPU";
+  const gpuLabel = "GPU";
   const modelMissing = modelStatus !== null && !modelStatus.ready;
   const installedModelLabels = MODEL_TIERS.filter((tier) =>
     modelStatus?.installed?.includes(tier.key),
@@ -1587,11 +1582,17 @@ function App() {
 
               {fallbackNotice && (
                 <div className="fallback-notice" role="status" aria-live="polite">
-                  <strong>{fallbackNotice.from_gpu} unavailable</strong>
+                  <strong>GPU unavailable</strong>
                   <span>
                     Restarting on CPU ({computeInfo?.cpu_architecture ?? "ggml-cpu"}) from the
                     beginning.
                   </span>
+                  {fallbackNotice.reason && (
+                    <details className="fallback-details">
+                      <summary>Show error</summary>
+                      <code className="fallback-reason">{fallbackNotice.reason}</code>
+                    </details>
+                  )}
                 </div>
               )}
 

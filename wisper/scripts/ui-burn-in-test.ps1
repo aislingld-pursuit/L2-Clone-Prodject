@@ -92,7 +92,7 @@ if (-not (Test-Path $OutputVideo)) {
 }
 
 $size = (Get-Item $OutputVideo).Length
-if ($size -lt 10_000) {
+if ($size -lt 10000) {
     throw "Output video too small ($size bytes) — burn-in may have failed"
 }
 
