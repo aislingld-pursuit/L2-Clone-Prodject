@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use crate::error::WisperError;
 use crate::fetch::DownloadProgress;
-use crate::managed_binary::{ffmpeg_runnable, http_get, prepare_managed_binary};
+use crate::managed_binary::{ffmpeg_runnable, http_get, prepare_managed_binary, replace_verified_binary};
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FfmpegStatus {
@@ -278,8 +278,11 @@ fn download_ffmpeg_macos(
         let ffprobe_archive = bin_dir.join("ffprobe-download.zip");
         let _ = std::fs::remove_file(&ffmpeg_archive);
         let _ = std::fs::remove_file(&ffprobe_archive);
-        let _ = std::fs::remove_file(dest);
-        let _ = std::fs::remove_file(bin_dir.join(ffprobe_install_filename()));
+
+        let staging_ffmpeg = bin_dir.join(format!("{}.new", ffmpeg_install_filename()));
+        let staging_probe = bin_dir.join(format!("{}.new", ffprobe_install_filename()));
+        let _ = std::fs::remove_file(&staging_ffmpeg);
+        let _ = std::fs::remove_file(&staging_probe);
 
         let attempt = (|| {
             stream_http_to_file(
@@ -298,7 +301,7 @@ fn download_ffmpeg_macos(
                 &ffmpeg_archive,
                 bin_dir,
                 "ffmpeg",
-                ffmpeg_install_filename(),
+                &format!("{}.new", ffmpeg_install_filename()),
             )?;
 
             stream_http_to_file(
@@ -317,7 +320,14 @@ fn download_ffmpeg_macos(
                 &ffprobe_archive,
                 bin_dir,
                 "ffprobe",
-                ffprobe_install_filename(),
+                &format!("{}.new", ffprobe_install_filename()),
+            )?;
+
+            replace_verified_binary(&staging_ffmpeg, dest, ffmpeg_runnable)?;
+            replace_verified_binary(
+                &staging_probe,
+                &bin_dir.join(ffprobe_install_filename()),
+                ffmpeg_runnable,
             )?;
 
             if !ffmpeg_already_installed(dest) {
@@ -423,13 +433,6 @@ pub fn download_ffmpeg(
             automatic: false,
         });
         return Ok(dest);
-    }
-    if dest.is_file() {
-        let _ = std::fs::remove_file(&dest);
-    }
-    let probe_dest = bin_dir.join(ffprobe_install_filename());
-    if probe_dest.is_file() {
-        let _ = std::fs::remove_file(&probe_dest);
     }
 
     #[cfg(target_os = "macos")]

@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use symphonia::core::audio::{AudioBufferRef, Signal};
 use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
@@ -11,6 +11,7 @@ use symphonia::core::probe::Hint;
 
 use crate::error::WisperError;
 use crate::ffmpeg_tools::{resolve_ffmpeg, resolve_ffprobe};
+use crate::managed_binary::command_for_binary;
 
 pub(crate) const TARGET_SAMPLE_RATE: u32 = 16_000;
 
@@ -37,7 +38,7 @@ fn ffmpeg_available() -> bool {
 fn ffprobe_duration_ms(path: &Path) -> Option<u64> {
     let path_str = path.to_str()?;
     let ffprobe = resolve_ffprobe()?;
-    let output = Command::new(&ffprobe)
+    let output = command_for_binary(&ffprobe)
         .args([
             "-v",
             "error",
@@ -64,7 +65,7 @@ fn decode_with_ffmpeg(path: &Path) -> Result<Vec<f32>, WisperError> {
         .ok_or_else(|| WisperError::AudioDecode("non-UTF-8 path".into()))?;
     let ffmpeg = resolve_ffmpeg()?;
 
-    let output = Command::new(&ffmpeg)
+    let output = command_for_binary(&ffmpeg)
         .args([
             "-nostdin",
             "-hide_banner",

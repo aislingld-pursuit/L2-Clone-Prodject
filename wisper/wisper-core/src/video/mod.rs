@@ -1,11 +1,12 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use crate::error::WisperError;
 use crate::export::format_transcript_srt;
 use crate::ffmpeg_tools::resolve_ffmpeg;
+use crate::managed_binary::command_for_binary;
 use crate::transcribe::TranscriptSegment;
 
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "mkv", "webm", "m4v"];
@@ -68,7 +69,7 @@ pub fn burn_in_subtitles(
     let filter_path = escape_subtitles_filter_path(&srt_path);
     let vf = format!("subtitles='{filter_path}':force_style='FontSize=24,PrimaryColour=&HFFFFFF&'");
 
-    let status = Command::new(&ffmpeg)
+    let status = command_for_binary(&ffmpeg)
         .arg("-y")
         .arg("-i")
         .arg(video_path)

@@ -53,7 +53,7 @@ pub use transcribe::{
     TranscriptSegment, TranscriptWord, TranscriptionProgress, TranscriptionResult,
 };
 pub use video::{burn_in_subtitles, is_video_path};
-pub use managed_binary::{ffmpeg_runnable, prepare_managed_binary, yt_dlp_runnable};
+pub use managed_binary::{command_for_binary, ffmpeg_runnable, prepare_managed_binary, yt_dlp_runnable};
 pub use update::{check_for_update, UpdateCheckResult, GITHUB_REPO};
 
 /// Default model filename (user downloads to app data dir on first run).

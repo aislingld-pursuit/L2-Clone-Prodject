@@ -310,6 +310,7 @@ function App() {
   const [ffmpegInstallProgress, setFfmpegInstallProgress] = useState<DownloadProgress | null>(
     null,
   );
+  const [managedToolsReady, setManagedToolsReady] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(
     null,
   );
@@ -455,13 +456,42 @@ function App() {
       setLanguage(saved);
     }
 
-    invoke<YtDlpStatus>("get_yt_dlp_status")
-      .then(setYtDlpStatus)
-      .catch((e) => setError(String(e)));
-    invoke<FfmpegStatus>("get_ffmpeg_status")
-      .then(setFfmpegStatus)
-      .catch((e) => setError(String(e)));
-    invoke("start_managed_tools_refresh").catch(() => {});
+    let cancelled = false;
+
+    const refreshToolStatus = async () => {
+      try {
+        const [yt, ff] = await Promise.all([
+          invoke<YtDlpStatus>("get_yt_dlp_status"),
+          invoke<FfmpegStatus>("get_ffmpeg_status"),
+        ]);
+        if (!cancelled) {
+          setYtDlpStatus(yt);
+          setFfmpegStatus(ff);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(String(e));
+        }
+      }
+    };
+
+    const unlistenReady = listen("managed-tools-ready", () => {
+      if (cancelled) return;
+      setManagedToolsReady(true);
+      void refreshToolStatus();
+    });
+
+    invoke("start_managed_tools_refresh").catch(() => {
+      if (!cancelled) {
+        setManagedToolsReady(true);
+        void refreshToolStatus();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      void unlistenReady.then((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
@@ -989,6 +1019,10 @@ function App() {
       setError("Paste a YouTube or audio URL first.");
       return;
     }
+    if (!managedToolsReady) {
+      setError("Still checking yt-dlp — try again in a moment.");
+      return;
+    }
     if (!ytDlpStatus?.available) {
       setError(ytDlpStatus?.hint ?? "yt-dlp is not available.");
       return;
@@ -1293,6 +1327,7 @@ function App() {
         open={showWelcome}
         modelReady={modelStatus?.ready ?? false}
         modelTier={modelTier}
+        managedToolsReady={managedToolsReady}
         onModelTierChange={selectModelTier}
         onApplyRecommendation={(rec) => {
           selectModelTier(rec.model_key);
@@ -1489,6 +1524,7 @@ function App() {
                 urlInput={urlInput}
                 busy={busy}
                 isRecording={isRecording}
+                managedToolsReady={managedToolsReady}
                 ytDlpStatus={ytDlpStatus}
                 ytDlpInstalling={ytDlpInstalling}
                 ytDlpInstallProgress={ytDlpInstallProgress}

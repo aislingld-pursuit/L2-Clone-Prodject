@@ -13,6 +13,7 @@ interface UrlImportRowProps {
   urlInput: string;
   busy: boolean;
   isRecording: boolean;
+  managedToolsReady: boolean;
   ytDlpStatus: YtDlpStatus | null;
   ytDlpInstalling: boolean;
   ytDlpInstallProgress: DownloadProgress | null;
@@ -25,6 +26,7 @@ export function UrlImportRow({
   urlInput,
   busy,
   isRecording,
+  managedToolsReady,
   ytDlpStatus,
   ytDlpInstalling,
   ytDlpInstallProgress,
@@ -32,7 +34,8 @@ export function UrlImportRow({
   onImport,
   onInstallYtDlp,
 }: UrlImportRowProps) {
-  const canImport = ytDlpStatus?.available && urlInput.trim().length > 0;
+  const canImport =
+    managedToolsReady && ytDlpStatus?.available && urlInput.trim().length > 0;
 
   return (
     <div className="url-block">
@@ -58,8 +61,15 @@ export function UrlImportRow({
           Download &amp; transcribe
         </button>
       </div>
-      {ytDlpStatus?.available && <p className="hint">{ytDlpStatus.hint}</p>}
-      {!ytDlpStatus?.available && (
+      {managedToolsReady && ytDlpStatus?.available && (
+        <p className="hint">{ytDlpStatus.hint}</p>
+      )}
+      {!managedToolsReady && (
+        <p className="hint" role="status">
+          Checking yt-dlp…
+        </p>
+      )}
+      {managedToolsReady && !ytDlpStatus?.available && (
         <div className="ytdlp-banner">
           <p className="hint warn">
             {ytDlpStatus?.hint ??

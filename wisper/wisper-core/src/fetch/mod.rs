@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader};
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
@@ -9,7 +9,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::error::WisperError;
-use crate::managed_binary::{http_get, prepare_managed_binary, yt_dlp_runnable};
+use crate::managed_binary::{command_for_binary, http_get, replace_verified_binary, yt_dlp_runnable};
 
 const BLOCKED_HOSTNAMES: &[&str] = &[
     "localhost",
@@ -192,25 +192,18 @@ pub fn download_yt_dlp(
     std::fs::create_dir_all(bin_dir).map_err(|e| WisperError::Fetch(e.to_string()))?;
     let dest = bin_dir.join(yt_dlp_install_filename());
     if !force_refresh && dest.is_file() {
-        if let Ok(meta) = std::fs::metadata(&dest) {
-            if meta.len() > 100_000 && yt_dlp_runnable(&dest) {
-                on_progress(DownloadProgress {
-                    percent: Some(100),
-                    status: "yt-dlp already installed.".into(),
-                    automatic: false,
-                });
-                return Ok(dest);
-            }
+        if yt_dlp_runnable(&dest) {
+            on_progress(DownloadProgress {
+                percent: Some(100),
+                status: "yt-dlp already installed.".into(),
+                automatic: false,
+            });
+            return Ok(dest);
         }
-        let _ = std::fs::remove_file(&dest);
-    } else if force_refresh && dest.is_file() {
         let _ = std::fs::remove_file(&dest);
     }
 
-    let partial = dest.with_extension("part");
-    if partial.exists() {
-        let _ = std::fs::remove_file(&partial);
-    }
+    let staging = dest.with_extension("part");
 
     on_progress(DownloadProgress {
         percent: Some(0),
@@ -227,7 +220,7 @@ pub fn download_yt_dlp(
 
     let mut reader = response.into_reader();
     let mut file =
-        std::fs::File::create(&partial).map_err(|e| WisperError::Fetch(e.to_string()))?;
+        std::fs::File::create(&staging).map_err(|e| WisperError::Fetch(e.to_string()))?;
     let mut downloaded: u64 = 0;
     let mut buffer = [0u8; 64 * 1024];
 
@@ -254,17 +247,7 @@ pub fn download_yt_dlp(
         .map_err(|e| WisperError::Fetch(e.to_string()))?;
     drop(file);
 
-    std::fs::rename(&partial, &dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
-
-    prepare_managed_binary(&dest)?;
-
-    if !yt_dlp_runnable(&dest) {
-        let _ = std::fs::remove_file(&dest);
-        return Err(WisperError::Fetch(
-            "yt-dlp install failed verification — downloaded binary did not run on this system"
-                .into(),
-        ));
-    }
+    replace_verified_binary(&staging, &dest, yt_dlp_runnable)?;
 
     on_progress(DownloadProgress {
         percent: Some(100),
@@ -353,7 +336,14 @@ pub fn download_url(
 
     on_progress(DownloadProgress::with_status(None, "Starting download…"));
 
-    let mut child = Command::new(yt_dlp)
+    if !yt_dlp_runnable(yt_dlp) {
+        return Err(WisperError::Fetch(
+            "yt-dlp is not runnable on this system — use Advanced options to reinstall yt-dlp"
+                .into(),
+        ));
+    }
+
+    let mut child = command_for_binary(yt_dlp)
         .args([
             "--no-playlist",
             "--newline",

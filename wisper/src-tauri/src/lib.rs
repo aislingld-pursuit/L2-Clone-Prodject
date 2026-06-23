@@ -83,22 +83,23 @@ fn file_stem(path: &str) -> String {
 fn yt_dlp_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
     let exe_name = if cfg!(windows) { "yt-dlp.exe" } else { "yt-dlp" };
     let mut candidates = Vec::new();
+    // Prefer app-managed copy over bundled installer resources.
+    candidates.push(app_data_dir(app).join("bin").join(exe_name));
     if let Ok(resource) = app.path().resource_dir() {
         candidates.push(resource.join("bin").join(exe_name));
         candidates.push(resource.join(exe_name));
     }
-    candidates.push(app_data_dir(app).join("bin").join(exe_name));
     candidates
 }
 
 fn ffmpeg_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
     let exe_name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
     let mut candidates = Vec::new();
+    candidates.push(app_data_dir(app).join("bin").join(exe_name));
     if let Ok(resource) = app.path().resource_dir() {
         candidates.push(resource.join("bin").join(exe_name));
         candidates.push(resource.join(exe_name));
     }
-    candidates.push(app_data_dir(app).join("bin").join(exe_name));
     candidates
 }
 
@@ -1056,6 +1057,7 @@ fn start_managed_tools_refresh(app: tauri::AppHandle) -> Result<(), String> {
 
     if !refresh_yt && !refresh_ffmpeg {
         MANAGED_TOOLS_REFRESHING.store(false, Ordering::SeqCst);
+        let _ = app.emit("managed-tools-ready", ());
         return Ok(());
     }
 
@@ -1096,6 +1098,7 @@ fn start_managed_tools_refresh(app: tauri::AppHandle) -> Result<(), String> {
         }
 
         MANAGED_TOOLS_REFRESHING.store(false, Ordering::SeqCst);
+        let _ = handle.emit("managed-tools-ready", ());
     });
     Ok(())
 }

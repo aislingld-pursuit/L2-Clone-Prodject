@@ -58,6 +58,7 @@ interface WelcomeGuideProps {
   open: boolean;
   modelReady: boolean;
   modelTier: string;
+  managedToolsReady: boolean;
   onModelTierChange: (tier: string) => void;
   onApplyRecommendation: (rec: ModelRecommendation) => void;
   onFinish: () => void;
@@ -68,6 +69,7 @@ export function WelcomeGuide({
   open: visible,
   modelReady,
   modelTier,
+  managedToolsReady,
   onModelTierChange,
   onApplyRecommendation,
   onFinish,
@@ -157,14 +159,14 @@ export function WelcomeGuide({
   }, [visible, downloading, onRefreshModel]);
 
   useEffect(() => {
-    if (!visible || step !== "how") return;
+    if (!visible || step !== "how" || !managedToolsReady) return;
     invoke<YtDlpStatus>("get_yt_dlp_status")
       .then(setYtDlpStatus)
       .catch((e) => setError(String(e)));
     invoke<FfmpegStatus>("get_ffmpeg_status")
       .then(setFfmpegStatus)
       .catch((e) => setError(String(e)));
-  }, [visible, step]);
+  }, [visible, step, managedToolsReady]);
 
   useEffect(() => {
     if (!visible || !ytDlpInstalling) return;
@@ -496,7 +498,12 @@ export function WelcomeGuide({
                 export them.
               </li>
             </ol>
-            {!ytDlpStatus?.available && (
+            {!managedToolsReady && (
+              <p className="guide-note" role="status">
+                Checking optional tools…
+              </p>
+            )}
+            {managedToolsReady && !ytDlpStatus?.available && (
               <div className="ytdlp-banner">
                 <p className="guide-note">
                   Optional: install yt-dlp now for URL import, or skip and use files and recording

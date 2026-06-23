@@ -16,6 +16,24 @@ pub fn http_get(url: &str) -> Result<ureq::Response, ureq::Error> {
     ureq::get(url).set("User-Agent", HTTP_USER_AGENT).call()
 }
 
+/// Spawn a helper binary without flashing a console window on Windows.
+pub fn command_for_binary(path: &Path) -> Command {
+    let mut cmd = Command::new(path);
+    hide_console_window(&mut cmd);
+    cmd
+}
+
+#[cfg(windows)]
+fn hide_console_window(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_console_window(_cmd: &mut Command) {}
+
 /// Mark a downloaded helper binary executable and macOS-runnable.
 pub fn prepare_managed_binary(path: &Path) -> Result<(), WisperError> {
     #[cfg(unix)]
@@ -44,7 +62,6 @@ fn set_unix_executable(path: &Path) -> Result<(), WisperError> {
 
 #[cfg(target_os = "macos")]
 fn macos_adhoc_sign(path: &Path) -> Result<(), WisperError> {
-    // Downloads can carry quarantine; Gatekeeper blocks unsigned helpers until signed.
     let _ = Command::new("xattr")
         .args(["-cr", path.to_string_lossy().as_ref()])
         .stdout(Stdio::null())
@@ -67,8 +84,48 @@ fn macos_adhoc_sign(path: &Path) -> Result<(), WisperError> {
     Ok(())
 }
 
+/// Verify `staging`, then replace `dest` without leaving `dest` missing on failure.
+pub fn replace_verified_binary(
+    staging: &Path,
+    dest: &Path,
+    verify: impl Fn(&Path) -> bool,
+) -> Result<(), WisperError> {
+    prepare_managed_binary(staging)?;
+    if !verify(staging) {
+        let _ = std::fs::remove_file(staging);
+        let label = dest
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "binary".into());
+        return Err(WisperError::Fetch(format!(
+            "{label} install failed verification — downloaded binary did not run on this system"
+        )));
+    }
+
+    if dest.is_file() {
+        let backup = dest.with_extension("bak");
+        let _ = std::fs::remove_file(&backup);
+        if std::fs::rename(dest, &backup).is_ok() {
+            if std::fs::rename(staging, dest).is_err() {
+                let _ = std::fs::rename(&backup, dest);
+                return Err(WisperError::Fetch(
+                    "could not replace managed tool binary".into(),
+                ));
+            }
+            let _ = std::fs::remove_file(&backup);
+        } else {
+            std::fs::remove_file(dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
+            std::fs::rename(staging, dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
+        }
+    } else {
+        std::fs::rename(staging, dest).map_err(|e| WisperError::Fetch(e.to_string()))?;
+    }
+
+    Ok(())
+}
+
 pub fn binary_runnable(path: &Path, version_flag: &str) -> bool {
-    Command::new(path)
+    command_for_binary(path)
         .arg(version_flag)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
