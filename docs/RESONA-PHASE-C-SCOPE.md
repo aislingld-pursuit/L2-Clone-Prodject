@@ -1,15 +1,15 @@
 # Resona Phase C — Layout scope (UX-C1 + UX-C2)
 
-**Status:** Decisions locked 2026-07-15 (3 of 4 — see Locked decisions); version pending A+B ship  
-**Ship order:** after Resona Phase A + B is shipped — A+B are feature-complete in the `0.2.0-beta.29` tree but not yet tagged (see Phase A + B prerequisites)  
-**Version target:** `0.2.0-beta.30` (proposed)  
+**Status:** Decisions locked 2026-07-15 (4 of 4 — see Locked decisions)  
+**Ship order:** after the Resona rebrand ships in `0.2.0-beta.30` (Phase A + B visual redesign went out in beta.29; rebrand completion is beta.30 — see release history)  
+**Version target:** `0.2.0-beta.31` (proposed)  
 **Rule:** One slice → smoke test → commit → tag → Release CI
 
 Planning parent: [RESONA-VISUAL-REDESIGN.md](./RESONA-VISUAL-REDESIGN.md) · Task IDs tracked in [../TODO.md](../TODO.md) (Slice UX → Phase C).
 
 ---
 
-## Phase C — Two-column layout + Advanced split (`beta.30`)
+## Phase C — Two-column layout + Advanced split (`beta.31`)
 
 Phase A shipped the structure (EmptyStateHero, URL row, model-missing panel, export dropdown, `tokens.css`) and Phase B the visual reskin + Resona rebrand. Phase C is the **layout** phase: give the app breathing room on wide windows and untangle the Advanced options list. No new transcription features — this is arrangement only.
 
@@ -18,7 +18,7 @@ Phase A shipped the structure (EmptyStateHero, URL row, model-missing panel, exp
 - **UX-C1 — Two-column library + transcript (≥800px)** — on windows wider than `800px`, show the recordings **library** and the active **transcript** side by side instead of stacked. Below `800px` the layout stays the current single stacked column. The header, the Transcribe/empty-state card, and the Advanced panel remain full width above the two-column region.
 - **UX-C2 — Split Advanced into Setup vs per-recording** — within the single-column Advanced panel, add two labelled sub-groups: **Setup** (install-once, machine-level: compute device, speech model + downloads, and the yt-dlp + ffmpeg tool installers consolidated here) and **Per-recording** (options that vary per file, starting with transcription language), so users stop scanning one flat list to find the one control they change per file.
 
-### Out of scope (not promised in beta.30)
+### Out of scope (not promised in beta.31)
 
 - Resizable / draggable column splitter (columns are a fixed responsive grid)
 - Three-column or master-detail navigation
@@ -61,19 +61,18 @@ Files expected to change: `wisper/src/App.tsx`, `wisper/src/resona.css` (primary
 - **Tool installers → consolidated under Setup.** Move the yt-dlp installer from `UrlImportRow` into the Setup sub-group next to ffmpeg; one home for all tool installs, with an optional contextual fallback on the URL row when yt-dlp is missing at import time.
 - **Column scroll → independent per-column.** Library and transcript scroll separately at ≥800px; whole-page scroll below 800px.
 
-### Still open
+### Version — resolved: `beta.31`
 
-- **Version/tag — pending Phase A + B ship.** Phase C should be its own tag per the one-slice-per-tag rule (recommended `beta.30`), but that depends on A+B shipping first. See prerequisites below.
+Phase C ships as its own tag `v0.2.0-beta.31`, per the one-slice-per-tag rule. Phase A + B already shipped across beta.29 and beta.30 (see release history below), so Phase C is next in line.
 
-## Phase A + B prerequisites (must close before Phase C ships)
+## Release history (Phase A + B — shipped)
 
-Phase A (UX-A1–A5) and Phase B (UX-B1–B5) are **feature-complete and wired in the `beta.29` tree** — all five redesign components (`EmptyStateHero`, `UrlImportRow`, `ModelMissingPanel`, `ExportMenu`, `AppHeader`) are imported and used in `App.tsx`; `tokens.css` + `resona.css` exist; the Resona header ("Resona." + *a private whisper*) and the window title + About screen are rebranded. Three loose ends have now been closed in the tree, leaving only the release action:
+Phase A (UX-A1–A5) and Phase B (UX-B1–B5) are **shipped and wired** — all five redesign components (`EmptyStateHero`, `UrlImportRow`, `ModelMissingPanel`, `ExportMenu`, `AppHeader`) are imported and used in `App.tsx`; `tokens.css` + `resona.css` exist; the Resona header ("Resona." + *a private whisper*), window title, and About screen are rebranded. The rollout landed in two tags:
 
-1. ✅ **Tauri `productName` → `"Resona"`** (`src-tauri/tauri.conf.json:3`) — the app / installer name now matches the window `title` and About screen. Installer / `.exe` / DMG artifacts will build as `Resona_…`; the app-data dir is unaffected (it keys off the unchanged `identifier` `com.aislingldpursuit.wisper`), so existing models and library data carry over.
-2. ✅ **Stray "Wisper" copy removed** — the 5 remaining strings in `WelcomeGuide.tsx` and `App.tsx` (GPU fallback notice) now read "Resona"; `grep "Wisper" src` is clean of user-facing copy. Finishes UX-B2/B3.
-3. ✅ **CHANGELOG** — the Resona A+B redesign is now documented under the `0.2.0-beta.29` entry (`### Changed`). **Still pending (release action, not a code change):** tag `v0.2.0-beta.29` + Release CI.
+- **`v0.2.0-beta.29`** — Resona A+B visual redesign (header, hero, URL row, model-missing panel, export dropdown, "Deep Current" theme) plus managed-tool reliability + GPU status hardening. Tagged at `82368c5`, which still carried `productName = "Wisper"` and a few stray "Wisper" UI strings.
+- **`v0.2.0-beta.30`** — rebrand completion: Tauri `productName` → `"Resona"` (installer/app name; artifacts now build as `Resona_…`) and the last 5 "Wisper" strings in `WelcomeGuide.tsx` / `App.tsx` fixed. Package identifier (`com.aislingldpursuit.wisper`) unchanged, so models and library carry over in place. `grep "Wisper" src` is now clean of user-facing copy.
 
-**Recommendation:** the tree is now ready to ship **beta.29** as the Resona A+B + reliability release — only `tag v0.2.0-beta.29` + Release CI remain. Then implement Phase C on top and ship it as **beta.30**, keeping one-slice-per-tag intact. Folding A+B+C into a single beta.29 is still possible (nothing is public yet) but stacks three slices into one tag.
+Phase C (this doc) builds on beta.30 and ships as **beta.31**.
 
 ## Smoke gate
 
@@ -88,4 +87,4 @@ Must pass `cargo test` (wisper-core), `cargo check`, and `npm run build`. Phase 
 
 ## User-facing summary
 
-**beta.30:** On a wide window, Resona shows your **recordings** and the **transcript** side by side, and the **Advanced options** are tidied into a **Setup** group (install once) and **Per-recording** options (change per file). On a narrow window everything stacks exactly as before.
+**beta.31:** On a wide window, Resona shows your **recordings** and the **transcript** side by side, and the **Advanced options** are tidied into a **Setup** group (install once) and **Per-recording** options (change per file). On a narrow window everything stacks exactly as before.

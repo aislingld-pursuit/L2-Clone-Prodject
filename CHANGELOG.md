@@ -5,6 +5,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.30] - 2026-07-15
+
+Completes the Resona rebrand started in beta.29.
+
+### Changed
+
+- **Resona rebrand completed** — the app / installer name (Tauri `productName`) is now **Resona**, matching the window title and About screen, and the last "Wisper" strings in the welcome guide and the GPU-fallback notice now read "Resona". The package identifier (`com.aislingldpursuit.wisper`) is unchanged, so existing models and library data carry over in place; installer artifacts now build as `Resona_…`.
+
+**Tag `v0.2.0-beta.30`** — finish the Resona rename (`productName` + remaining UI copy).
+
 ## [0.2.0-beta.29] - 2026-06-23
 
 The **Resona** visual redesign (Phase A + B) plus a reliability and hardening pass for the managed-tool pipeline (yt-dlp / ffmpeg) and GPU status surfacing.
@@ -15,7 +25,7 @@ The **Resona** visual redesign (Phase A + B) plus a reliability and hardening pa
 
 ### Changed
 
-- **Resona rebrand + visual redesign (Phase A + B)** — the app is now **Resona**: window title, About screen, and the app / installer name (Tauri `productName`) all update, alongside a new "Deep Current" gradient header (appmark + "Resona." + the tagline *a private whisper*), a full-panel empty-state hero drop zone, a URL-import row on the main transcribe panel, a consolidated model-missing setup panel, and a TXT / SRT / VTT export dropdown. The package identifier (`com.aislingldpursuit.wisper`) is unchanged, so existing models and library data carry over in place.
+- **Resona visual redesign (Phase A + B)** — introduces the **Resona** identity: a new "Deep Current" gradient header (appmark + "Resona." + the tagline *a private whisper*), the Resona window title and About screen, a full-panel empty-state hero drop zone, a URL-import row on the main transcribe panel, a consolidated model-missing setup panel, and a TXT / SRT / VTT export dropdown. (The app / installer name — Tauri `productName` — and a few remaining UI strings finish updating in beta.30.)
 
 ### Fixed
 
