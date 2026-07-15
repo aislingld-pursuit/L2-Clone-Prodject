@@ -5,6 +5,24 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-beta.29] - 2026-06-23
+
+Reliability and hardening pass for the managed-tool pipeline (yt-dlp / ffmpeg) and GPU status surfacing. No new user-facing features — the goal is a stable, testable installer for partner QA.
+
+### Added
+
+- **GPU backend shown in the UI** — the active accelerator label (CUDA / Vulkan / Metal / CPU-only) is surfaced, and GPU fallback now exposes the underlying error detail instead of failing silently.
+
+### Fixed
+
+- **Managed-tool startup race** — Wisper now emits `managed-tools-ready` before the UI checks yt-dlp / ffmpeg status, so tools installed through the app are detected on first launch instead of appearing missing.
+- **Safe binary replacement** — yt-dlp and ffmpeg are verified by running them before an existing copy is replaced, and app-managed copies are preferred over bundled installer resources.
+- **Hardened installs** — install flows confirm the downloaded binary actually runs, with macOS Gatekeeper preparation for the managed copies.
+- **No Windows console flash** — helper processes spawn with `CREATE_NO_WINDOW`, removing the brief black console window on Windows.
+- **wisper-core update exports** — restored the update-check exports that broke during the export refactor.
+
+**Tag `v0.2.0-beta.29`** — managed-tool reliability + GPU status hardening (version/CHANGELOG done; tag/CI when ready to ship).
+
 ## [0.2.0-beta.28] - 2026-06-08
 
 ### Added
