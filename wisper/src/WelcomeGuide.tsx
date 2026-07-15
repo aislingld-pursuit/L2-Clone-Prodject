@@ -338,7 +338,7 @@ export function WelcomeGuide({
             <p className="guide-eyebrow">Welcome</p>
             <h2 id="guide-title">Turn speech into text</h2>
             <p className="guide-lead">
-              Wisper listens to recordings or audio files and writes out the words for you.
+              Resona listens to recordings or audio files and writes out the words for you.
               Everything stays on your computer — nothing is uploaded.
             </p>
             <button type="button" className="primary guide-primary" onClick={goNextFromWelcome}>
@@ -352,7 +352,7 @@ export function WelcomeGuide({
             <p className="guide-eyebrow">Check your system</p>
             <h2 id="guide-title">Find the right model</h2>
             <p className="guide-lead">
-              Wisper runs entirely on your computer. A quick check helps pick a model size
+              Resona runs entirely on your computer. A quick check helps pick a model size
               that fits your hardware.
             </p>
             {hardwareLoading && !hardwareAdvice && (
@@ -412,7 +412,7 @@ export function WelcomeGuide({
             <p className="guide-eyebrow">Step 1 of 2</p>
             <h2 id="guide-title">Download the speech model</h2>
             <p className="guide-lead">
-              Wisper needs a one-time download before it can understand speech.
+              Resona needs a one-time download before it can understand speech.
               Pick a size for your computer — you only do this once.
             </p>
             <label className="field-label" htmlFor="guide-model-tier">
@@ -596,7 +596,7 @@ export function WelcomeGuide({
               Press Record or choose an audio file to create your first transcript.
             </p>
             <button type="button" className="primary guide-primary" onClick={finish}>
-              Start using Wisper
+              Start using Resona
             </button>
           </>
         )}

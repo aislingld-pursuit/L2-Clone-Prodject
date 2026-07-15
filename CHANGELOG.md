@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0-beta.29] - 2026-06-23
 
-Reliability and hardening pass for the managed-tool pipeline (yt-dlp / ffmpeg) and GPU status surfacing. No new user-facing features — the goal is a stable, testable installer for partner QA.
+The **Resona** visual redesign (Phase A + B) plus a reliability and hardening pass for the managed-tool pipeline (yt-dlp / ffmpeg) and GPU status surfacing.
 
 ### Added
 
 - **GPU backend shown in the UI** — the active accelerator label (CUDA / Vulkan / Metal / CPU-only) is surfaced, and GPU fallback now exposes the underlying error detail instead of failing silently.
+
+### Changed
+
+- **Resona rebrand + visual redesign (Phase A + B)** — the app is now **Resona**: window title, About screen, and the app / installer name (Tauri `productName`) all update, alongside a new "Deep Current" gradient header (appmark + "Resona." + the tagline *a private whisper*), a full-panel empty-state hero drop zone, a URL-import row on the main transcribe panel, a consolidated model-missing setup panel, and a TXT / SRT / VTT export dropdown. The package identifier (`com.aislingldpursuit.wisper`) is unchanged, so existing models and library data carry over in place.
 
 ### Fixed
 
@@ -21,7 +25,7 @@ Reliability and hardening pass for the managed-tool pipeline (yt-dlp / ffmpeg) a
 - **No Windows console flash** — helper processes spawn with `CREATE_NO_WINDOW`, removing the brief black console window on Windows.
 - **wisper-core update exports** — restored the update-check exports that broke during the export refactor.
 
-**Tag `v0.2.0-beta.29`** — managed-tool reliability + GPU status hardening (version/CHANGELOG done; tag/CI when ready to ship).
+**Tag `v0.2.0-beta.29`** — Resona A+B redesign + managed-tool reliability (version/CHANGELOG done; tag/CI when ready to ship).
 
 ## [0.2.0-beta.28] - 2026-06-08
 

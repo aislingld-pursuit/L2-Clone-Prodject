@@ -67,13 +67,13 @@ Files expected to change: `wisper/src/App.tsx`, `wisper/src/resona.css` (primary
 
 ## Phase A + B prerequisites (must close before Phase C ships)
 
-Phase A (UX-A1–A5) and Phase B (UX-B1–B5) are **feature-complete and wired in the `beta.29` tree** — all five redesign components (`EmptyStateHero`, `UrlImportRow`, `ModelMissingPanel`, `ExportMenu`, `AppHeader`) are imported and used in `App.tsx`; `tokens.css` + `resona.css` exist; the Resona header ("Resona." + *a private whisper*) and the window title + About screen are rebranded. But three loose ends remain before A+B is release-ready, and they gate the version decision:
+Phase A (UX-A1–A5) and Phase B (UX-B1–B5) are **feature-complete and wired in the `beta.29` tree** — all five redesign components (`EmptyStateHero`, `UrlImportRow`, `ModelMissingPanel`, `ExportMenu`, `AppHeader`) are imported and used in `App.tsx`; `tokens.css` + `resona.css` exist; the Resona header ("Resona." + *a private whisper*) and the window title + About screen are rebranded. Three loose ends have now been closed in the tree, leaving only the release action:
 
-1. **Tauri `productName` still `"Wisper"`** (`src-tauri/tauri.conf.json:3`) — the window `title` is `"Resona"` (line 15) and the About screen reads "About Resona", but the app/installer name is still Wisper. UX-B4 named `productName` explicitly. Decide: rename to Resona (changes installer / `.exe` / DMG artifact filenames and Release-CI output names; the app-data dir is safe — it keys off the unchanged `identifier` `com.aislingldpursuit.wisper`), or deliberately keep Wisper as the binary name.
-2. **Stray "Wisper" copy (5 strings)** — `WelcomeGuide.tsx` (lines 341, 355, 415, 599) and `App.tsx:82` (GPU fallback notice) still say "Wisper", inconsistent with the rebranded header. A short copy pass finishes UX-B2/B3.
-3. **No CHANGELOG entry or tag/CI for the A+B redesign** — the redesign landed at `ff2c5d5` but was never logged or released (the un-CHANGELOG'd gap noted on PR #4). A+B needs its own CHANGELOG entry and a tag before, or together with, Phase C.
+1. ✅ **Tauri `productName` → `"Resona"`** (`src-tauri/tauri.conf.json:3`) — the app / installer name now matches the window `title` and About screen. Installer / `.exe` / DMG artifacts will build as `Resona_…`; the app-data dir is unaffected (it keys off the unchanged `identifier` `com.aislingldpursuit.wisper`), so existing models and library data carry over.
+2. ✅ **Stray "Wisper" copy removed** — the 5 remaining strings in `WelcomeGuide.tsx` and `App.tsx` (GPU fallback notice) now read "Resona"; `grep "Wisper" src` is clean of user-facing copy. Finishes UX-B2/B3.
+3. ✅ **CHANGELOG** — the Resona A+B redesign is now documented under the `0.2.0-beta.29` entry (`### Changed`). **Still pending (release action, not a code change):** tag `v0.2.0-beta.29` + Release CI.
 
-**Recommendation:** close #1–#3 and ship **beta.29** as the Resona A+B + reliability release (CHANGELOG entry + tag + Release CI), then implement Phase C on top and ship it as **beta.30** — keeping one-slice-per-tag intact. Folding A+B+C into a single beta.29 is possible (nothing is public yet) but stacks three slices into one tag.
+**Recommendation:** the tree is now ready to ship **beta.29** as the Resona A+B + reliability release — only `tag v0.2.0-beta.29` + Release CI remain. Then implement Phase C on top and ship it as **beta.30**, keeping one-slice-per-tag intact. Folding A+B+C into a single beta.29 is still possible (nothing is public yet) but stacks three slices into one tag.
 
 ## Smoke gate
 

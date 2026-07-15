@@ -79,7 +79,7 @@ function computeHint(info: ComputeInfo | null): string {
     return `This build is CPU-only. Rebuild with a GPU feature: gpu-vulkan (Windows/Linux), gpu-cuda (NVIDIA), or use macOS for Metal. ${cpuLine}`;
   }
   const fallbackLine = info.supports_cpu_fallback
-    ? " GPU is tried first; if inference fails, Wisper automatically retries on CPU and shows a notice."
+    ? " GPU is tried first; if inference fails, Resona automatically retries on CPU and shows a notice."
     : "";
   switch (info.gpu_backend_kind) {
     case "metal":
