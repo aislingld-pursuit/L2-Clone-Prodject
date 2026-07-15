@@ -191,6 +191,8 @@ Must pass: `cargo test` (wisper-core), `cargo check`, `npm run build`.
 
 ### Phase C — Layout (after A + B)
 
+**Scope doc:** `docs/RESONA-PHASE-C-SCOPE.md`
+
 - [ ] **UX-C1** — Two-column library + transcript (≥800px)
 - [ ] **UX-C2** — Split Advanced: Setup vs per-job options
 
