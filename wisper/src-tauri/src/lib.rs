@@ -26,7 +26,8 @@ use wisper_core::{
     ModelStatus, StarterModel, GpuFallbackNotice, RecordingSource, RecordingSummary, Storage,
     is_model_file_valid, TranscriptExportSet,
     SystemProfile, TranscribeOptions, TranscriptSegment, TranscriptionProgress, WhisperEngine,
-    WisperError, YtDlpStatus, UpdateCheckResult, check_for_update,
+    WisperError, YtDlpStatus, UpdateCheckResult, check_for_update, auto_gpu_device, gpu_devices,
+    prefer_integrated_gpu,
 };
 
 struct AppState {
@@ -161,6 +162,7 @@ fn run_transcription_job(
     source_url: Option<String>,
     language_label: Option<String>,
     model_tier: Option<String>,
+    gpu_device: i32,
     cancel: Arc<AtomicBool>,
 ) -> Result<TranscribeResult, WisperError> {
     let app_state = app_handle.state::<AppState>();
@@ -182,6 +184,9 @@ fn run_transcription_job(
             .engine
             .lock()
             .map_err(|e| WisperError::Storage(e.to_string()))?;
+        if backend == ComputeBackend::Gpu {
+            engine.set_gpu_device(gpu_device);
+        }
 
         let progress_app = app_handle.clone();
         let fallback_app = app_handle.clone();
@@ -365,9 +370,16 @@ fn start_download_all_models(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+// async: first call initializes the GPU backend — keep it off the UI thread.
+#[tauri::command(async)]
 fn get_compute_info() -> ComputeInfo {
     compute_info()
+}
+
+/// GPU index "Auto" picks right now (integrated on battery or in a low-power-GPU plan, else dedicated).
+#[tauri::command(async)]
+fn get_auto_gpu_device() -> i32 {
+    auto_gpu_device(&gpu_devices(), prefer_integrated_gpu())
 }
 
 #[derive(serde::Serialize)]
@@ -377,7 +389,7 @@ struct HardwareAdvice {
     recommendation: ModelRecommendation,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_hardware_advice(app: tauri::AppHandle) -> HardwareAdvice {
     let dir = models_dir(&app);
     let profile = get_system_profile(&dir);
@@ -391,7 +403,7 @@ fn get_hardware_advice(app: tauri::AppHandle) -> HardwareAdvice {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_app_about(app: tauri::AppHandle) -> AppAbout {
     app_about(app.package_info().version.to_string())
 }
@@ -1109,6 +1121,7 @@ fn start_transcription(
     state: tauri::State<'_, AppState>,
     audio_path: String,
     use_gpu: bool,
+    gpu_device: Option<i32>,
     source: Option<String>,
     title: Option<String>,
     language: Option<String>,
@@ -1159,6 +1172,7 @@ fn start_transcription(
             source_url,
             language_label,
             model,
+            gpu_device.unwrap_or(0),
             cancel,
         );
 
@@ -1191,6 +1205,7 @@ fn start_url_import(
     state: tauri::State<'_, AppState>,
     url: String,
     use_gpu: bool,
+    gpu_device: Option<i32>,
     language: Option<String>,
     model: Option<String>,
 ) -> Result<(), String> {
@@ -1255,6 +1270,7 @@ fn start_url_import(
                 Some(download.source_url),
                 language_label,
                 model,
+                gpu_device.unwrap_or(0),
                 cancel,
             )
         })();
@@ -1315,6 +1331,7 @@ pub fn run() {
             start_model_download,
             start_download_all_models,
             get_compute_info,
+            get_auto_gpu_device,
             get_hardware_advice,
             get_app_about,
             check_for_app_update,
