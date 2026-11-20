@@ -339,6 +339,9 @@ function App() {
     current: number;
     total: number;
   } | null>(null);
+  const pendingSubmissionRef = useRef<{ cancelled: boolean } | null>(null);
+  const activeJobBackendRef = useRef<ComputeChoice>("cpu");
+  const activeJobGpuRef = useRef<GpuDevice | null>(null);
   const ytDlpAutoRefreshRef = useRef(false);
   const ffmpegAutoRefreshRef = useRef(false);
   const importQueueRef = useRef<string[]>([]);
@@ -439,10 +442,17 @@ function App() {
         } else {
           setComputeBackend(info.default_backend);
         }
-        // Saved GPU may be gone (driver change, or launched with GGML_VK_VISIBLE_DEVICES) — keep "auto".
-        const savedGpu = localStorage.getItem(GPU_DEVICE_STORAGE_KEY);
-        if (info.gpu_devices.some((device) => String(device.index) === savedGpu)) {
-          setGpuDevice(Number(savedGpu));
+        // Indices can change after driver updates or device visibility changes.
+        try {
+          const savedGpu = JSON.parse(localStorage.getItem(GPU_DEVICE_STORAGE_KEY) ?? "null");
+          const matches = info.gpu_devices.filter((device) =>
+            savedGpu?.name === device.name &&
+            savedGpu?.integrated === device.integrated &&
+            savedGpu?.backend === info.gpu_backend_kind,
+          );
+          setGpuDevice(matches.length === 1 ? matches[0].index : "auto");
+        } catch {
+          setGpuDevice("auto");
         }
       })
       .catch((e) => setError(String(e)));
@@ -686,7 +696,9 @@ function App() {
         } else {
           setFallbackNotice(null);
           const device =
-            event.payload.actual_backend === "gpu" ? "GPU" : "CPU";
+            event.payload.actual_backend === "gpu"
+              ? (activeJobGpuRef.current ? shortGpuName(activeJobGpuRef.current.name) : "GPU")
+              : "CPU";
           setStatus(
             `Done on ${device} — ${event.payload.segments.length} segment${event.payload.segments.length === 1 ? "" : "s"} saved to library.`,
           );
@@ -753,7 +765,8 @@ function App() {
     }>("download-complete", (event) => {
       setDownloadProgress(null);
       setAudioPath(event.payload.audio_path);
-      setStatus(`Downloaded "${event.payload.title}" — transcribing locally…`);
+      const device = activeJobGpuRef.current;
+      setStatus(`Downloaded "${event.payload.title}" — transcribing on ${activeJobBackendRef.current === "gpu" ? (device ? shortGpuName(device.name) : "GPU") : "CPU"} locally…`);
     });
 
     return () => {
@@ -804,13 +817,26 @@ function App() {
 
   function selectBackend(next: ComputeChoice) {
     setComputeBackend(next);
-    localStorage.setItem(COMPUTE_STORAGE_KEY, next);
+    try {
+      localStorage.setItem(COMPUTE_STORAGE_KEY, next);
+    } catch {
+      // Preferences are best effort; the current selection still applies.
+    }
   }
 
   function selectGpu(choice: number | "auto") {
     selectBackend("gpu");
     setGpuDevice(choice);
-    localStorage.setItem(GPU_DEVICE_STORAGE_KEY, String(choice));
+    const device = computeInfo?.gpu_devices.find((item) => item.index === choice);
+    try {
+      localStorage.setItem(GPU_DEVICE_STORAGE_KEY, JSON.stringify(device ? {
+        name: device.name,
+        integrated: device.integrated,
+        backend: computeInfo?.gpu_backend_kind,
+      } : null));
+    } catch {
+      // Preferences are best effort; the current selection still applies.
+    }
   }
 
   /** GPU index for this job; "auto" asks the backend (integrated on battery, dedicated on AC). */
@@ -943,7 +969,15 @@ function App() {
     setDownloadProgress(null);
     setFallbackNotice(null);
     setLastUsedCpuFallback(false);
+    const submission = { cancelled: false };
+    pendingSubmissionRef.current = submission;
     const device = computeBackend === "gpu" ? await resolveGpuDevice() : 0;
+    if (submission.cancelled) return;
+    pendingSubmissionRef.current = null;
+    activeJobBackendRef.current = computeBackend;
+    activeJobGpuRef.current = computeBackend === "gpu"
+      ? computeInfo?.gpu_devices.find((item) => item.index === device) ?? null
+      : null;
     const gpuName = computeInfo?.gpu_devices.find((d) => d.index === device)?.name;
     const deviceLabel =
       computeBackend === "gpu"
@@ -1082,11 +1116,20 @@ function App() {
     setSegments([]);
     setStatus("Downloading audio (network)…");
 
+    const submission = { cancelled: false };
+    pendingSubmissionRef.current = submission;
+    const device = computeBackend === "gpu" ? await resolveGpuDevice() : 0;
+    if (submission.cancelled) return;
+    pendingSubmissionRef.current = null;
+    activeJobBackendRef.current = computeBackend;
+    activeJobGpuRef.current = computeBackend === "gpu"
+      ? computeInfo?.gpu_devices.find((item) => item.index === device) ?? null
+      : null;
     try {
       await invoke("start_url_import", {
         url: trimmed,
         useGpu: computeBackend === "gpu",
-        gpuDevice: await resolveGpuDevice(),
+        gpuDevice: device,
         language,
         model: modelTier,
       });
@@ -1145,6 +1188,16 @@ function App() {
 
   async function cancelTranscription() {
     clearImportQueue();
+    const pending = pendingSubmissionRef.current;
+    if (pending) {
+      pending.cancelled = true;
+      pendingSubmissionRef.current = null;
+      setBusy(false);
+      setDownloadProgress(null);
+      setUrlJobActive(false);
+      setStatus("Transcription cancelled.");
+      return;
+    }
     try {
       await invoke("cancel_transcription");
       setStatus("Cancelling…");

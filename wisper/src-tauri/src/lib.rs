@@ -184,7 +184,9 @@ fn run_transcription_job(
             .engine
             .lock()
             .map_err(|e| WisperError::Storage(e.to_string()))?;
-        engine.set_gpu_device(gpu_device);
+        if backend == ComputeBackend::Gpu {
+            engine.set_gpu_device(gpu_device);
+        }
 
         let progress_app = app_handle.clone();
         let fallback_app = app_handle.clone();
@@ -387,7 +389,7 @@ struct HardwareAdvice {
     recommendation: ModelRecommendation,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_hardware_advice(app: tauri::AppHandle) -> HardwareAdvice {
     let dir = models_dir(&app);
     let profile = get_system_profile(&dir);
@@ -401,7 +403,7 @@ fn get_hardware_advice(app: tauri::AppHandle) -> HardwareAdvice {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_app_about(app: tauri::AppHandle) -> AppAbout {
     app_about(app.package_info().version.to_string())
 }
