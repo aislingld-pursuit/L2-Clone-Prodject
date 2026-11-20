@@ -64,9 +64,99 @@ pub fn cpu_architecture_label() -> &'static str {
     }
 }
 
+/// A GPU whisper.cpp can run on.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuDevice {
+    /// whisper.cpp `gpu_device` index (counts GPUs only, in ggml registry order).
+    pub index: i32,
+    /// Driver name, e.g. "AMD Radeon(TM) 890M Graphics".
+    pub name: String,
+    /// Shares system RAM (iGPU) — far lower power than a dedicated card.
+    pub integrated: bool,
+}
+
+/// GPUs this build can use. The first call initializes the GPU backend
+/// (e.g. creates the Vulkan instance), which whisper.cpp would do on first load anyway.
+pub fn gpu_devices() -> Vec<GpuDevice> {
+    use whisper_rs::whisper_rs_sys as sys;
+
+    if compiled_gpu_backend().is_none() {
+        return Vec::new();
+    }
+
+    let mut devices = Vec::new();
+    // Same filter and order as whisper.cpp's whisper_backend_init_gpu, so `index` lines up.
+    unsafe {
+        for i in 0..sys::ggml_backend_dev_count() {
+            let dev = sys::ggml_backend_dev_get(i);
+            let kind = sys::ggml_backend_dev_type(dev);
+            let integrated = kind == sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_IGPU;
+            if !integrated && kind != sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_GPU {
+                continue;
+            }
+            let name = std::ffi::CStr::from_ptr(sys::ggml_backend_dev_description(dev))
+                .to_string_lossy()
+                .into_owned();
+            devices.push(GpuDevice {
+                index: devices.len() as i32,
+                name,
+                integrated,
+            });
+        }
+    }
+    devices
+}
+
+/// `Some(true)` when running on battery, `Some(false)` on AC, `None` if unknown.
+#[cfg(windows)]
+pub fn on_battery() -> Option<bool> {
+    #[repr(C)]
+    #[derive(Default)]
+    struct SystemPowerStatus {
+        ac_line_status: u8,
+        battery_flag: u8,
+        battery_life_percent: u8,
+        system_status_flag: u8,
+        battery_life_time: u32,
+        battery_full_life_time: u32,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetSystemPowerStatus(status: *mut SystemPowerStatus) -> i32;
+    }
+
+    let mut status = SystemPowerStatus::default();
+    if unsafe { GetSystemPowerStatus(&mut status) } == 0 {
+        return None;
+    }
+    match status.ac_line_status {
+        0 => Some(true),
+        1 => Some(false),
+        _ => None,
+    }
+}
+
+// ponytail: Windows only; read /sys/class/power_supply/*/online when Linux laptops need Auto.
+#[cfg(not(windows))]
+pub fn on_battery() -> Option<bool> {
+    None
+}
+
+/// GPU for "Auto": integrated on battery, dedicated when plugged in or power is unknown.
+pub fn auto_gpu_device(devices: &[GpuDevice], on_battery: Option<bool>) -> i32 {
+    let want_integrated = on_battery == Some(true);
+    devices
+        .iter()
+        .find(|device| device.integrated == want_integrated)
+        .or(devices.first())
+        .map_or(0, |device| device.index)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeInfo {
     pub gpu_available: bool,
+    /// GPUs to choose from; empty on CPU-only builds.
+    pub gpu_devices: Vec<GpuDevice>,
     /// Human-readable backend name when GPU is compiled in (e.g. "Metal", "Vulkan").
     pub gpu_backend: Option<String>,
     pub gpu_backend_kind: Option<GpuBackendKind>,
@@ -84,6 +174,7 @@ pub fn compute_info() -> ComputeInfo {
     let gpu_available = gpu_backend.is_some();
     ComputeInfo {
         gpu_available,
+        gpu_devices: gpu_devices(),
         gpu_backend,
         gpu_backend_kind: kind,
         default_backend: if gpu_available {
@@ -195,6 +286,37 @@ mod tests {
             assert_eq!(info.default_backend, ComputeBackend::Gpu);
             assert!(info.supports_cpu_fallback);
         }
+    }
+
+    #[test]
+    fn gpu_device_indices_match_whisper_order() {
+        let devices = gpu_devices();
+        if compiled_gpu_backend().is_none() {
+            assert!(devices.is_empty());
+        }
+        for (i, device) in devices.iter().enumerate() {
+            assert_eq!(device.index, i as i32);
+            assert!(!device.name.is_empty());
+        }
+    }
+
+    #[test]
+    fn auto_gpu_follows_power_source() {
+        let gpu = |index, integrated| GpuDevice {
+            index,
+            name: format!("GPU {index}"),
+            integrated,
+        };
+        let both = [gpu(0, true), gpu(1, false)];
+        assert_eq!(auto_gpu_device(&both, Some(true)), 0);
+        assert_eq!(auto_gpu_device(&both, Some(false)), 1);
+        assert_eq!(auto_gpu_device(&both, None), 1);
+        // Only one kind available: use it whatever the power source.
+        assert_eq!(auto_gpu_device(&[gpu(0, true)], Some(false)), 0);
+        assert_eq!(auto_gpu_device(&[gpu(0, false)], Some(true)), 0);
+        assert_eq!(auto_gpu_device(&[], Some(true)), 0);
+        // Real power reading must not crash; value depends on the machine.
+        let _ = on_battery();
     }
 
     #[test]

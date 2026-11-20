@@ -24,6 +24,8 @@ struct LoadedModel {
 pub struct WhisperEngine {
     cpu: Option<LoadedModel>,
     gpu: Option<LoadedModel>,
+    /// whisper.cpp `gpu_device` (see [`crate::gpu_devices`]).
+    gpu_device: i32,
 }
 
 impl WhisperEngine {
@@ -32,6 +34,15 @@ impl WhisperEngine {
         Self {
             cpu: None,
             gpu: None,
+            gpu_device: 0,
+        }
+    }
+
+    /// Choose the GPU for later GPU loads; drops the cached GPU context when it changes.
+    pub fn set_gpu_device(&mut self, index: i32) {
+        if self.gpu_device != index {
+            self.gpu_device = index;
+            self.gpu = None;
         }
     }
 
@@ -51,6 +62,7 @@ impl WhisperEngine {
             });
         }
 
+        let gpu_device = self.gpu_device;
         let slot = match backend {
             ComputeBackend::Cpu => &mut self.cpu,
             ComputeBackend::Gpu => &mut self.gpu,
@@ -63,6 +75,7 @@ impl WhisperEngine {
         if needs_reload {
             let mut ctx_params = WhisperContextParameters::default();
             ctx_params.use_gpu = backend == ComputeBackend::Gpu;
+            ctx_params.gpu_device = gpu_device;
 
             let context = WhisperContext::new_with_params(
                 model_path

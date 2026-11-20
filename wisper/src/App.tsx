@@ -46,8 +46,15 @@ interface RecordingSummary {
   is_video?: boolean;
 }
 
+interface GpuDevice {
+  index: number;
+  name: string;
+  integrated: boolean;
+}
+
 interface ComputeInfo {
   gpu_available: boolean;
+  gpu_devices: GpuDevice[];
   gpu_backend: string | null;
   gpu_backend_kind: "metal" | "cuda" | "vulkan" | "intelsycl" | null;
   default_backend: "cpu" | "gpu";
@@ -95,6 +102,16 @@ function computeHint(info: ComputeInfo | null): string {
         ? `${info.gpu_backend} GPU acceleration is available.${fallbackLine} ${cpuLine}`
         : `GPU acceleration is available.${fallbackLine} ${cpuLine}`;
   }
+}
+
+/** "AMD Radeon(TM) 890M Graphics" → "Radeon 890M", "NVIDIA GeForce RTX 5080 Laptop GPU" → "RTX 5080". */
+function shortGpuName(name: string): string {
+  const short = name
+    .replace(/\((TM|R)\)/gi, "")
+    .replace(/\b(AMD|NVIDIA|GeForce|Intel|Graphics|Laptop|GPU)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return short || name;
 }
 
 interface TranscribeResult {
@@ -157,6 +174,7 @@ interface ModelStatus {
 type ComputeChoice = "cpu" | "gpu";
 
 const COMPUTE_STORAGE_KEY = "wisper-compute-backend";
+const GPU_DEVICE_STORAGE_KEY = "wisper-gpu-device";
 const LANGUAGE_STORAGE_KEY = "wisper-language";
 const ADVANCED_STORAGE_KEY = "wisper-show-advanced";
 const KEEP_ADVANCED_OPEN_KEY = "wisper-keep-advanced-open";
@@ -255,6 +273,7 @@ function App() {
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [computeInfo, setComputeInfo] = useState<ComputeInfo | null>(null);
   const [computeBackend, setComputeBackend] = useState<ComputeChoice>("cpu");
+  const [gpuDevice, setGpuDevice] = useState<number | "auto">("auto");
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -419,6 +438,11 @@ function App() {
           setComputeBackend("cpu");
         } else {
           setComputeBackend(info.default_backend);
+        }
+        // Saved GPU may be gone (driver change, or launched with GGML_VK_VISIBLE_DEVICES) — keep "auto".
+        const savedGpu = localStorage.getItem(GPU_DEVICE_STORAGE_KEY);
+        if (info.gpu_devices.some((device) => String(device.index) === savedGpu)) {
+          setGpuDevice(Number(savedGpu));
         }
       })
       .catch((e) => setError(String(e)));
@@ -783,6 +807,18 @@ function App() {
     localStorage.setItem(COMPUTE_STORAGE_KEY, next);
   }
 
+  function selectGpu(choice: number | "auto") {
+    selectBackend("gpu");
+    setGpuDevice(choice);
+    localStorage.setItem(GPU_DEVICE_STORAGE_KEY, String(choice));
+  }
+
+  /** GPU index for this job; "auto" asks the backend (integrated on battery, dedicated on AC). */
+  async function resolveGpuDevice(): Promise<number> {
+    if (gpuDevice !== "auto") return gpuDevice;
+    return invoke<number>("get_auto_gpu_device").catch(() => 0);
+  }
+
   function selectLanguage(next: string) {
     setLanguage(next);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, next);
@@ -907,7 +943,14 @@ function App() {
     setDownloadProgress(null);
     setFallbackNotice(null);
     setLastUsedCpuFallback(false);
-    const deviceLabel = computeBackend === "gpu" ? "GPU" : "CPU";
+    const device = computeBackend === "gpu" ? await resolveGpuDevice() : 0;
+    const gpuName = computeInfo?.gpu_devices.find((d) => d.index === device)?.name;
+    const deviceLabel =
+      computeBackend === "gpu"
+        ? `${gpuName ? shortGpuName(gpuName) : "GPU"}${
+            gpuDevice === "auto" && (computeInfo?.gpu_devices.length ?? 0) > 1 ? " · auto" : ""
+          }`
+        : "CPU";
     const fileName = path.split(/[/\\]/).pop() ?? path;
     const batchLabel = options?.batch
       ? ` (${options.batch.current} of ${options.batch.total}: ${fileName})`
@@ -919,6 +962,7 @@ function App() {
       await invoke("start_transcription", {
         audioPath: path,
         useGpu: computeBackend === "gpu",
+        gpuDevice: device,
         source: options?.source,
         title: options?.title,
         language,
@@ -1042,6 +1086,7 @@ function App() {
       await invoke("start_url_import", {
         url: trimmed,
         useGpu: computeBackend === "gpu",
+        gpuDevice: await resolveGpuDevice(),
         language,
         model: modelTier,
       });
@@ -1289,6 +1334,13 @@ function App() {
   }
 
   const gpuLabel = "GPU";
+  const gpuDevices = computeInfo?.gpu_devices ?? [];
+  const integratedGpu = gpuDevices.find((device) => device.integrated);
+  const dedicatedGpu = gpuDevices.find((device) => !device.integrated);
+  const autoGpuHint =
+    integratedGpu && dedicatedGpu
+      ? `Auto uses ${shortGpuName(integratedGpu.name)} on battery and ${shortGpuName(dedicatedGpu.name)} when plugged in`
+      : "Auto picks a GPU for you";
   const modelMissing = modelStatus !== null && !modelStatus.ready;
   const installedModelLabels = MODEL_TIERS.filter((tier) =>
     modelStatus?.installed?.includes(tier.key),
@@ -1703,23 +1755,66 @@ function App() {
               >
                 CPU
               </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={computeBackend === "gpu"}
-                className={computeBackend === "gpu" ? "active" : ""}
-                onClick={() => selectBackend("gpu")}
-                disabled={busy || !computeInfo?.gpu_available}
-                title={
-                  computeInfo?.gpu_available
-                    ? `Use ${gpuLabel} acceleration`
-                    : "GPU not available in this build"
-                }
-              >
-                {gpuLabel}
-              </button>
+              {gpuDevices.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={computeBackend === "gpu" && gpuDevice === "auto"}
+                    className={computeBackend === "gpu" && gpuDevice === "auto" ? "active" : ""}
+                    onClick={() => selectGpu("auto")}
+                    disabled={busy}
+                    title={autoGpuHint}
+                  >
+                    Auto
+                  </button>
+                  {gpuDevices.map((device) => {
+                    const active = computeBackend === "gpu" && gpuDevice === device.index;
+                    return (
+                      <button
+                        key={device.index}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        className={active ? "active" : ""}
+                        onClick={() => selectGpu(device.index)}
+                        disabled={busy}
+                        title={`${device.name} — ${
+                          device.integrated
+                            ? "integrated, lowest power"
+                            : "dedicated, fastest but uses more power"
+                        }`}
+                      >
+                        {shortGpuName(device.name)}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={computeBackend === "gpu"}
+                  className={computeBackend === "gpu" ? "active" : ""}
+                  onClick={() => selectBackend("gpu")}
+                  disabled={busy || !computeInfo?.gpu_available}
+                  title={
+                    computeInfo?.gpu_available
+                      ? `Use ${gpuLabel} acceleration`
+                      : "GPU not available in this build"
+                  }
+                >
+                  {gpuLabel}
+                </button>
+              )}
             </div>
             <p className="hint compute-hint">{computeHint(computeInfo)}</p>
+            {gpuDevices.length > 1 && (
+              <p className="hint compute-meta">
+                {autoGpuHint}. Pick a GPU yourself to lock it in. After using a dedicated GPU,
+                restart Resona so it can power down.
+              </p>
+            )}
 
             <h3 className="advanced-subtitle">Speech model</h3>
             <label className="field-label" htmlFor="model-tier-select">
