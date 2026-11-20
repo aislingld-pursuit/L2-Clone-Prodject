@@ -27,7 +27,7 @@ use wisper_core::{
     is_model_file_valid, TranscriptExportSet,
     SystemProfile, TranscribeOptions, TranscriptSegment, TranscriptionProgress, WhisperEngine,
     WisperError, YtDlpStatus, UpdateCheckResult, check_for_update, auto_gpu_device, gpu_devices,
-    on_battery,
+    prefer_integrated_gpu,
 };
 
 struct AppState {
@@ -376,10 +376,10 @@ fn get_compute_info() -> ComputeInfo {
     compute_info()
 }
 
-/// GPU index "Auto" picks right now (integrated on battery, dedicated on AC).
+/// GPU index "Auto" picks right now (integrated on battery or in a low-power-GPU plan, else dedicated).
 #[tauri::command(async)]
 fn get_auto_gpu_device() -> i32 {
-    auto_gpu_device(&gpu_devices(), on_battery())
+    auto_gpu_device(&gpu_devices(), prefer_integrated_gpu())
 }
 
 #[derive(serde::Serialize)]

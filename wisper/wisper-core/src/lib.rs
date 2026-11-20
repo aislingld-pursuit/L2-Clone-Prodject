@@ -16,8 +16,8 @@ pub mod video;
 
 pub use compute::{
     app_about, auto_gpu_device, compiled_gpu_backend, compute_info, cpu_architecture_label,
-    gpu_devices, on_battery, platform_os_label, release_artifact_label, validate_backend,
-    AppAbout, ComputeBackend, ComputeInfo, GpuBackendKind, GpuDevice,
+    gpu_devices, on_battery, platform_os_label, prefer_integrated_gpu, release_artifact_label,
+    validate_backend, AppAbout, ComputeBackend, ComputeInfo, GpuBackendKind, GpuDevice,
 };
 pub use engine::WhisperEngine;
 pub use error::WisperError;

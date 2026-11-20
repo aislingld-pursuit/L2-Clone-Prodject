@@ -839,7 +839,7 @@ function App() {
     }
   }
 
-  /** GPU index for this job; "auto" asks the backend (integrated on battery, dedicated on AC). */
+  /** GPU index for this job; "auto" asks the backend (integrated on battery or in a power-saving plan). */
   async function resolveGpuDevice(): Promise<number> {
     if (gpuDevice !== "auto") return gpuDevice;
     return invoke<number>("get_auto_gpu_device").catch(() => 0);
@@ -1392,7 +1392,7 @@ function App() {
   const dedicatedGpu = gpuDevices.find((device) => !device.integrated);
   const autoGpuHint =
     integratedGpu && dedicatedGpu
-      ? `Auto uses ${shortGpuName(integratedGpu.name)} on battery and ${shortGpuName(dedicatedGpu.name)} when plugged in`
+      ? `Auto uses ${shortGpuName(integratedGpu.name)} on battery or in a power-saving plan, and ${shortGpuName(dedicatedGpu.name)} otherwise`
       : "Auto picks a GPU for you";
   const modelMissing = modelStatus !== null && !modelStatus.ready;
   const installedModelLabels = MODEL_TIERS.filter((tier) =>

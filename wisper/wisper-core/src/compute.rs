@@ -142,12 +142,66 @@ pub fn on_battery() -> Option<bool> {
     None
 }
 
-/// GPU for "Auto": integrated on battery, dedicated when plugged in or power is unknown.
-pub fn auto_gpu_device(devices: &[GpuDevice], on_battery: Option<bool>) -> i32 {
-    let want_integrated = on_battery == Some(true);
+/// The active Windows power plan's plugged-in "GPU preference policy" (0 = None, 1 = Low Power),
+/// or `None` if it can't be read.
+#[cfg(windows)]
+fn active_plan_gpu_policy() -> Option<u32> {
+    use std::ffi::c_void;
+    use std::ptr::null_mut;
+
+    #[repr(C)]
+    struct Guid(u32, u16, u16, [u8; 8]);
+    // powercfg subgroup 5fb4938d-1ee8-4b0f-9a3c-5036b0ab995c, setting dd848b2a-8a5d-4451-9ae2-39cd41658f6c
+    const SUB_GRAPHICS: Guid =
+        Guid(0x5fb4938d, 0x1ee8, 0x4b0f, [0x9a, 0x3c, 0x50, 0x36, 0xb0, 0xab, 0x99, 0x5c]);
+    const GPU_PREFERENCE_POLICY: Guid =
+        Guid(0xdd848b2a, 0x8a5d, 0x4451, [0x9a, 0xe2, 0x39, 0xcd, 0x41, 0x65, 0x8f, 0x6c]);
+
+    #[link(name = "powrprof")]
+    extern "system" {
+        fn PowerGetActiveScheme(root: *mut c_void, scheme: *mut *mut Guid) -> u32;
+        fn PowerReadACValueIndex(
+            root: *mut c_void,
+            scheme: *const Guid,
+            subgroup: *const Guid,
+            setting: *const Guid,
+            value: *mut u32,
+        ) -> u32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LocalFree(mem: *mut c_void) -> *mut c_void;
+    }
+
+    unsafe {
+        let mut scheme = null_mut();
+        if PowerGetActiveScheme(null_mut(), &mut scheme) != 0 {
+            return None;
+        }
+        let mut value = 0;
+        let status =
+            PowerReadACValueIndex(null_mut(), scheme, &SUB_GRAPHICS, &GPU_PREFERENCE_POLICY, &mut value);
+        LocalFree(scheme.cast());
+        (status == 0).then_some(value)
+    }
+}
+
+#[cfg(not(windows))]
+fn active_plan_gpu_policy() -> Option<u32> {
+    None
+}
+
+/// Auto should use the integrated GPU: on battery, or the active power plan asks for the low-power
+/// GPU even when plugged in (e.g. a cool-running travel plan on a power bank).
+pub fn prefer_integrated_gpu() -> bool {
+    on_battery() == Some(true) || active_plan_gpu_policy() == Some(1)
+}
+
+/// GPU for "Auto": the integrated one when `prefer_integrated`, otherwise the dedicated one.
+pub fn auto_gpu_device(devices: &[GpuDevice], prefer_integrated: bool) -> i32 {
     devices
         .iter()
-        .find(|device| device.integrated == want_integrated)
+        .find(|device| device.integrated == prefer_integrated)
         .or(devices.first())
         .map_or(0, |device| device.index)
 }
@@ -308,15 +362,21 @@ mod tests {
             integrated,
         };
         let both = [gpu(0, true), gpu(1, false)];
-        assert_eq!(auto_gpu_device(&both, Some(true)), 0);
-        assert_eq!(auto_gpu_device(&both, Some(false)), 1);
-        assert_eq!(auto_gpu_device(&both, None), 1);
-        // Only one kind available: use it whatever the power source.
-        assert_eq!(auto_gpu_device(&[gpu(0, true)], Some(false)), 0);
-        assert_eq!(auto_gpu_device(&[gpu(0, false)], Some(true)), 0);
-        assert_eq!(auto_gpu_device(&[], Some(true)), 0);
-        // Real power reading must not crash; value depends on the machine.
-        let _ = on_battery();
+        assert_eq!(auto_gpu_device(&both, true), 0);
+        assert_eq!(auto_gpu_device(&both, false), 1);
+        // Only one kind available: use it whatever the preference.
+        assert_eq!(auto_gpu_device(&[gpu(0, true)], false), 0);
+        assert_eq!(auto_gpu_device(&[gpu(0, false)], true), 0);
+        assert_eq!(auto_gpu_device(&[], true), 0);
+    }
+
+    #[test]
+    fn power_readings_do_not_crash() {
+        // Values depend on the machine and its active power plan.
+        let policy = active_plan_gpu_policy();
+        eprintln!("on_battery={:?} plan_gpu_policy={policy:?}", on_battery());
+        assert!(matches!(policy, None | Some(0) | Some(1)));
+        let _ = prefer_integrated_gpu();
     }
 
     #[test]
